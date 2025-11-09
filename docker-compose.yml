@@ -1,5 +1,42 @@
 services:
+  # שירות מסד הנתונים
+  db:
+    image: postgres:latest
+    environment:
+      # קורא את המשתנים מקובץ ה-.env שלך
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # שירות ה-Backend
   backend:
     build: ./backend
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      # מעביר את הסודות לקונטיינר
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_HOST=db # זהו שם השירות של ה-DB
+    depends_on:
+      - db # מפעיל את ה-DB לפני ה-Backend
+
+  # שירות ה-Frontend
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # מונע סנכרון של node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data: # שומר את המידע של ה-DB

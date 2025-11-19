@@ -40,7 +40,7 @@ INSTALLED_APPS = [
 
 
     'rest_framework',
-    'rest_framework_simgplejwt',
+    'rest_framework_simplejwt',
     'project',
 ]
 
@@ -135,7 +135,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny', 
     ),
 }
 from datetime import timedelta

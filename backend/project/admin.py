@@ -1,13 +1,5 @@
 from django.contrib import admin
-
-# Register your models here.
-from django.contrib import admin
-from .models import User, Project
-
-@admin.register(User)
-class UserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'username', 'email', 'created_at')
-    search_fields = ('username', 'email')
+from .models import Project
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):

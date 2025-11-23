@@ -58,7 +58,8 @@ class ProjectDetailView(APIView):
     PUT: Update a project (owner only)
     DELETE: Delete a project (owner only)
     """
-    permission_classes = [IsAuthenticated]
+    # TODO: Re-enable authentication after implementing JWT
+    # permission_classes = [IsAuthenticated]
     
     def get_project(self, project_id, user=None):
         """Helper method to get project by ID"""

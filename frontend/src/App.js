@@ -1,24 +1,40 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from "react";
+import "./App.css";
+import Dashboard from "./components/Dashboard";
+import ProjectCanvas from "./components/ProjectCanvas";
+import { createProject } from "./services/projectService";
+import { getProjectIdFromPath, navigateToProject } from "./utils/routing";
 
+/**
+ * Main Application:
+ * - If URL is /projects/:id → show ProjectCanvas
+ * - Otherwise → show Dashboard
+ */
 function App() {
+  const [isCreating, setIsCreating] = useState(false);
+
+  const projectId = getProjectIdFromPath();
+  if (projectId) {
+    return <ProjectCanvas projectId={projectId} />;
+  }
+
+  const handleCreateProject = async () => {
+    try {
+      setIsCreating(true);
+
+      const data = await createProject("New project");
+      console.log("Created project:", data);
+
+      navigateToProject(data.id);
+    } catch (error) {
+      console.error("Error while creating project:", error);
+      alert("Failed to create project. Please check the console for details.");
+      setIsCreating(false);
+    }
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Dashboard onCreateProject={handleCreateProject} isCreating={isCreating} />
   );
 }
 

@@ -19,3 +19,20 @@ export const createProject = async (projectName = "New project") => {
 
   return await response.json();
 };
+
+export const getProject = async (projectId) => {
+  const response = await fetch(`/api/project/${projectId}/`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load project: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return await response.json();
+};

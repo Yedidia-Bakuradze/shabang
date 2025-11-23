@@ -13,7 +13,8 @@ class ProjectListView(APIView):
     GET: List all projects created by the authenticated user
     POST: Create a new project (authenticated users only)
     """
-    permission_classes = [IsAuthenticated]
+    # TODO: Re-enable authentication after implementing JWT
+    # permission_classes = [IsAuthenticated]
     
     def get(self, req):
         """Return all projects owned by the authenticated user"""
@@ -31,17 +32,22 @@ class ProjectListView(APIView):
 
     def post(self, req):
         """Create a new project for the authenticated user"""
-        try:
-            user = User.objects.get(id=req.user.id)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # TODO: Require authentication after implementing JWT
+        # For now, allow creating projects without a user
+        user = None
+        if req.user and req.user.is_authenticated:
+            try:
+                user = User.objects.get(id=req.user.id)
+            except User.DoesNotExist:
+                pass
         
         serializer = ProjectDetailSerializer(data=req.data)
         if serializer.is_valid():
-            serializer.save(owner=user)
+            # Save with owner if user exists, otherwise save without owner
+            if user:
+                serializer.save(owner=user)
+            else:
+                serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

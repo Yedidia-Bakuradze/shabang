@@ -4,7 +4,8 @@ from authentication.models import User
 
 class Project(models.Model):
 
-    owner = models.ForeignKey(User, on_delete=models.CASCADE,related_name='projects')
+    # TODO: Make owner required after implementing JWT authentication
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='projects', null=True, blank=True)
 
     name=models.CharField(max_length=255)
     description=models.TextField(blank=True,null=True)

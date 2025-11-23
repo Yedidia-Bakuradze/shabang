@@ -3,7 +3,7 @@
  */
 
 export const createProject = async (projectName = "New project") => {
-  const response = await fetch("/api/projects", {
+  const response = await fetch("/api/project/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

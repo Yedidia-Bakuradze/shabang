@@ -10,5 +10,13 @@ class User(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
+    @property
+    def is_authenticated(self):
+        """
+        Always return True for authenticated users.
+        This property is required by Django REST Framework.
+        """
+        return True
+    
     def __str__(self):
         return self.username

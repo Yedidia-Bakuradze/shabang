@@ -4,10 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import Card from '../components/Card';
+import PasswordPeekAnimation from '../components/PasswordPeekAnimation';
 
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [isTypingPassword, setIsTypingPassword] = useState(false);
     const { login, user } = useAuth();
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -31,12 +33,23 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <Card className="max-w-md w-full space-y-8 p-8">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Sign in to your account
-                    </h2>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="flex gap-8 items-center max-w-5xl w-full">
+                {/* Character on the left */}
+                <div className="hidden lg:block flex-shrink-0">
+                    <PasswordPeekAnimation isTyping={isTypingPassword} />
+                </div>
+                
+                {/* Login Form */}
+                <Card className="max-w-md w-full space-y-8 p-8 flex-grow">
+                    <div>
+                        {/* Show character on mobile */}
+                        <div className="lg:hidden mb-6">
+                            <PasswordPeekAnimation isTyping={isTypingPassword} />
+                        </div>
+                        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                            Sign in to your account
+                        </h2>
                     <p className="mt-2 text-center text-sm text-gray-600">
                         Or{' '}
                         <Link to="/signup" className="font-medium text-primary-600 hover:text-primary-500">
@@ -62,6 +75,8 @@ const Login = () => {
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
+                            onFocus={() => setIsTypingPassword(true)}
+                            onBlur={() => setIsTypingPassword(false)}
                             placeholder="Password"
                         />
                     </div>
@@ -78,6 +93,7 @@ const Login = () => {
                     </div>
                 </form>
             </Card>
+            </div>
         </div>
     );
 };

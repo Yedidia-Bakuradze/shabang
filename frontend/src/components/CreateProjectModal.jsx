@@ -14,7 +14,7 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const response = await api.post('/projects/', { name, description });
+            const response = await api.post('/project/', { name, description });
             toast.success('Project created successfully!');
             onProjectCreated(response.data);
             setName('');

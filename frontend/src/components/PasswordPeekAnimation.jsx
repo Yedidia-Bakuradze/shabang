@@ -51,11 +51,6 @@ const sparkleVariants = {
     }
 };
 
-const periscopeLensVariants = {
-    idle: { rotate: 0 },
-    typing: { rotate: [-4, 4, -4], transition: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' } }
-};
-
 const sidePenguinVariants = {
     hidden: { x: -120, y: 50, opacity: 0 },
     walking: (i) => ({

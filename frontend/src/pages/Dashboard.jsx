@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
-import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import CreateProjectModal from '../components/CreateProjectModal';
@@ -78,7 +77,6 @@ const Dashboard = () => {
     };
 
     return (
-        <Layout>
         <div className="bg-gray-50 dark:bg-gray-900 min-h-screen px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex justify-between items-center mb-8">
             <div>
@@ -211,7 +209,6 @@ const Dashboard = () => {
             </Dialog>
             </Transition>
         </div>
-        </Layout>
     );
 };
 

@@ -7,37 +7,47 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
+import Layout from './components/Layout';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
     <Router>
       <AuthProvider>
-        <Toaster position="top-right" />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route 
-            path="/" 
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/editor/:projectId" 
-            element={
-              <ProtectedRoute>
-                <Editor />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ThemeProvider>
+          <Toaster position="top-right" />
+
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout><Dashboard /></Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/editor/:projectId"
+              element={
+                <ProtectedRoute>
+                  <Layout><Editor /></Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ThemeProvider>
       </AuthProvider>
     </Router>
   );
 }
+
+
 
 export default App;
 

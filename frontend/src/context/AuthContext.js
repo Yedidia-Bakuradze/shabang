@@ -73,8 +73,7 @@ export const AuthProvider = ({ children }) => {
             return true;
         } catch (error) {
             console.error("Signup failed", error);
-            const message = error.response?.data ? Object.values(error.response.data).flat().join(' ') : 'Signup failed';
-            toast.error(message);
+            Object.values(error.response.data).flat().forEach((msg)=>{toast.error(msg);});
             return false;
         }
     };

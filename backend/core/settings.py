@@ -55,11 +55,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://host.docker.internal:3000',
-]
+# I've allowed it so we would be able to use ngrok easily
+CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOWED_ORIGINS = [
+#     'http://localhost:3000',
+#     'http://127.0.0.1:3000',
+#     'http://host.docker.internal:3000',
+# ]
 
 ROOT_URLCONF = 'core.urls'
 

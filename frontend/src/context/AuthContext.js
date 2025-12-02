@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }) => {
             return true;
         } catch (error) {
             console.error("Login failed", error);
-            toast.error(error.response?.data?.detail || 'Login failed. Please check your credentials.');
+            toast.error(error.response?.data?.detail || 'Login failed. Please check your credentials and internet connection.');
             return false;
         }
     };

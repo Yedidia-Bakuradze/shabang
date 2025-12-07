@@ -40,7 +40,17 @@ const EditorCanvas = () => {
     style: { strokeWidth: 2 }
   };
 
-  // Handle node selection
+  // Handle node click
+  const onNodeClick = useCallback((event, node) => {
+    setSelectedNodeId(node.id);
+  }, [setSelectedNodeId]);
+
+  // Handle pane click (background)
+  const onPaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, [setSelectedNodeId]);
+
+  // Handle node selection change
   const onSelectionChange = useCallback(({ nodes }) => {
     if (nodes.length > 0) {
       setSelectedNodeId(nodes[0].id);
@@ -57,6 +67,8 @@ const EditorCanvas = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

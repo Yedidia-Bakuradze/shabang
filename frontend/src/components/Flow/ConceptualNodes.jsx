@@ -70,7 +70,9 @@ export const AttributeNode = ({ id, data, selected }) => {
           type="text"
           value={data.label || 'Attribute'}
           onChange={handleLabelChange}
-          className="nodrag w-full bg-transparent text-white font-medium text-sm text-center outline-none focus:bg-purple-700 focus:bg-opacity-30 px-2 py-1 rounded transition-colors"
+          className={`nodrag w-full bg-transparent text-white font-medium text-sm text-center outline-none focus:bg-purple-700 focus:bg-opacity-30 px-2 py-1 rounded transition-colors ${
+            data.isKey ? 'underline decoration-2 underline-offset-2' : ''
+          }`}
           placeholder="Attribute"
         />
       </div>

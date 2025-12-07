@@ -360,6 +360,9 @@ const useFlowStore = create((set, get) => ({
       return '1:1';
     };
 
+    // Get previous connections to detect changes
+    const prevConnections = relationship.data.connections || [];
+
     // Determine if this is an identifying relationship
     const isIdentifying = connections.some(conn => conn.isIdentifying);
 
@@ -377,7 +380,7 @@ const useFlowStore = create((set, get) => ({
       entityConnectionMap.get(conn.entityId).push(conn);
     });
 
-    // AUTOMATIC FOREIGN KEY INJECTION & M:N DETECTION
+    // AUTOMATIC FOREIGN KEY INJECTION & REMOVAL
     const entities = Array.from(entityConnectionMap.keys());
     if (entities.length === 2) {
       const [entityAId, entityBId] = entities;
@@ -388,11 +391,34 @@ const useFlowStore = create((set, get) => ({
       const cardB = mapCardinality(connB.cardinality);
       const relType = determineRelationshipType(cardA, cardB);
 
+      // Get previous relationship type if exists
+      const prevEntityMap = new Map();
+      prevConnections.filter(conn => conn.entityId).forEach(conn => {
+        if (!prevEntityMap.has(conn.entityId)) {
+          prevEntityMap.set(conn.entityId, []);
+        }
+        prevEntityMap.get(conn.entityId).push(conn);
+      });
+
+      let prevRelType = null;
+      if (prevEntityMap.size === 2) {
+        const prevEntities = Array.from(prevEntityMap.keys());
+        if (prevEntities.includes(entityAId) && prevEntities.includes(entityBId)) {
+          const prevConnA = prevEntityMap.get(entityAId)[0];
+          const prevConnB = prevEntityMap.get(entityBId)[0];
+          const prevCardA = mapCardinality(prevConnA.cardinality);
+          const prevCardB = mapCardinality(prevConnB.cardinality);
+          prevRelType = determineRelationshipType(prevCardA, prevCardB);
+        }
+      }
+
+      // Handle FK based on relationship type change
       if (relType === '1:N') {
         // Inject FK into "Many" side
         const isAMany = cardA === 'MANY' || cardA === 'ZERO_MANY';
         const childId = isAMany ? entityAId : entityBId;
-        const parentEntity = get().nodes.find(n => n.id === (isAMany ? entityBId : entityAId));
+        const parentId = isAMany ? entityBId : entityAId;
+        const parentEntity = get().nodes.find(n => n.id === parentId);
         
         if (parentEntity) {
           const fkName = `${parentEntity.data.label.toLowerCase()}_id`;
@@ -407,13 +433,38 @@ const useFlowStore = create((set, get) => ({
               referencedEntity: parentEntity.data.label
             });
           }
+
+          // Remove FK from the other side if it was previously Many
+          if (prevRelType === '1:N') {
+            const otherEntity = get().nodes.find(n => n.id === parentId);
+            const childEntityData = get().nodes.find(n => n.id === childId);
+            if (otherEntity && childEntityData) {
+              get().removeForeignKeyFromEntity(parentId, childEntityData.data.label);
+            }
+          }
+        }
+      } else if (relType === '1:1' && prevRelType === '1:N') {
+        // Changed from 1:N to 1:1 - remove FKs from both sides
+        const entityA = get().nodes.find(n => n.id === entityAId);
+        const entityB = get().nodes.find(n => n.id === entityBId);
+        
+        if (entityA && entityB) {
+          get().removeForeignKeyFromEntity(entityAId, entityB.data.label);
+          get().removeForeignKeyFromEntity(entityBId, entityA.data.label);
         }
       } else if (relType === 'M:N') {
-        // Show warning about junction table
+        // Remove any existing FKs and show warning about junction table
+        const entityA = get().nodes.find(n => n.id === entityAId);
+        const entityB = get().nodes.find(n => n.id === entityBId);
+        
+        if (entityA && entityB) {
+          get().removeForeignKeyFromEntity(entityAId, entityB.data.label);
+          get().removeForeignKeyFromEntity(entityBId, entityA.data.label);
+        }
+
         const suggestion = get().detectAndSuggestJunctionTable(entityAId, entityBId);
         if (suggestion) {
           console.warn(suggestion.message);
-          // You can trigger a UI notification here
         }
       }
     }
@@ -511,6 +562,25 @@ const useFlowStore = create((set, get) => ({
       nodes: get().nodes.map(node =>
         node.id === entityId
           ? { ...node, data: { ...node.data, attributes: [...existingAttributes, fkAttribute] } }
+          : node
+      ),
+      hasUnsavedChanges: true
+    });
+  },
+
+  // Remove Foreign Key from Entity
+  removeForeignKeyFromEntity: (entityId, referencedEntityName) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity || entity.type !== 'entityNode') return;
+
+    const updatedAttributes = (entity.data.attributes || []).filter(attr => 
+      !(attr.isForeignKey && attr.referencedEntity === referencedEntityName)
+    );
+
+    set({
+      nodes: get().nodes.map(node =>
+        node.id === entityId
+          ? { ...node, data: { ...node.data, attributes: updatedAttributes } }
           : node
       ),
       hasUnsavedChanges: true

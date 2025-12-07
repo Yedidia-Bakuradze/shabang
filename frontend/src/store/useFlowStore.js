@@ -56,58 +56,75 @@ const useFlowStore = create((set, get) => ({
   },
 
   onConnect: (connection) => {
-    // Determine edge type based on source handle
-    const isAttributeEdge = connection.sourceHandle === 'handle-attributes';
-    
-    const newEdge = {
-      ...connection,
-      type: 'erdEdge',
-      data: { 
-        edgeType: isAttributeEdge ? 'attribute' : 'relationship',
-        sourceCardinality: 'ONE', 
-        targetCardinality: isAttributeEdge ? 'ONE' : 'MANY',
-        relationshipType: isAttributeEdge ? null : '1:N' // Default relationship type
-      }
-    };
+    const { source, target } = connection;
+    const nodes = get().nodes;
+    const sourceNode = nodes.find(n => n.id === source);
+    const targetNode = nodes.find(n => n.id === target);
 
-    // AUTO-INJECT FOREIGN KEY FOR 1:N RELATIONSHIPS
-    if (!isAttributeEdge) {
-      const sourceNode = get().nodes.find(n => n.id === connection.source);
-      const targetNode = get().nodes.find(n => n.id === connection.target);
-      
-      if (sourceNode && targetNode && sourceNode.type === 'entityNode' && targetNode.type === 'entityNode') {
-        // Determine relationship type based on cardinality
-        const relType = newEdge.data.relationshipType;
-        
-        if (relType === '1:N') {
-          // Child (Many side) gets FK referencing Parent (One side)
-          const childEntityId = connection.target;
-          const parentEntityName = sourceNode.data.label;
-          const fkName = `${parentEntityName.toLowerCase()}_id`;
-          
-          // Check if FK already exists
-          const childEntity = get().nodes.find(n => n.id === childEntityId);
-          const existingFk = childEntity?.data.attributes?.find(attr => 
-            attr.isForeignKey && attr.referencedEntity === parentEntityName
-          );
-          
-          if (!existingFk) {
-            // Inject FK into child entity
-            get().addForeignKeyToEntity(childEntityId, {
-              name: fkName,
-              isKey: false,
-              isForeignKey: true,
-              referencedEntity: parentEntityName
-            });
-          }
+    if (!sourceNode || !targetNode) return;
+
+    // CASE A: Entity-to-Entity Connection (Smart ERD)
+    // If both are entities, insert a Relationship Node (Diamond) in between
+    if (sourceNode.type === 'entityNode' && targetNode.type === 'entityNode') {
+      // 1. Calculate Midpoint
+      const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+      const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+      // 2. Create Relationship Node (Diamond)
+      const relationshipId = `rel-${Date.now()}`;
+      const relationshipNode = {
+        id: relationshipId,
+        type: 'relationshipNode',
+        position: { x: midX, y: midY },
+        data: { 
+          label: 'Relationship', 
+          shape: 'diamond',
+          nodeType: 'relationship'
         }
-      }
-    }
+      };
 
-    set({
-      edges: addEdge(newEdge, get().edges),
-      hasUnsavedChanges: true
-    });
+      // 3. Create 2 Edges
+      // Edge 1: Source -> Diamond
+      const edge1 = {
+        id: `edge-${source}-${relationshipId}`,
+        source: source,
+        target: relationshipId,
+        type: 'default',
+        style: { stroke: '#3b82f6', strokeWidth: 2 },
+        label: '1' // Default cardinality
+      };
+
+      // Edge 2: Diamond -> Target
+      const edge2 = {
+        id: `edge-${relationshipId}-${target}`,
+        source: relationshipId,
+        target: target,
+        type: 'default',
+        style: { stroke: '#3b82f6', strokeWidth: 2 },
+        label: 'N' // Default cardinality
+      };
+
+      // 4. Update Store
+      set({
+        nodes: [...nodes, relationshipNode],
+        edges: [...get().edges, edge1, edge2],
+        hasUnsavedChanges: true
+      });
+    } 
+    // CASE B: Entity-to-Attribute or other connections
+    else {
+      // Standard direct connection
+      const newEdge = {
+        ...connection,
+        type: 'default', // Use default edge for simple connections
+        style: { stroke: '#94a3b8', strokeWidth: 1 }
+      };
+
+      set({
+        edges: addEdge(newEdge, get().edges),
+        hasUnsavedChanges: true
+      });
+    }
   },
 
   addNode: (nodeType = 'entityNode') => {

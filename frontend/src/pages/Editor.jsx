@@ -8,7 +8,7 @@ const Editor = () => {
 
     return (
         <Layout>
-            <div className="h-[calc(100vh-64px)] w-full bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="h-[calc(100vh-64px)] w-full bg-white dark:bg-gray-900">
                 <EditorCanvas />
             </div>
         </Layout>

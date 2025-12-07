@@ -65,9 +65,45 @@ const useFlowStore = create((set, get) => ({
       data: { 
         edgeType: isAttributeEdge ? 'attribute' : 'relationship',
         sourceCardinality: 'ONE', 
-        targetCardinality: isAttributeEdge ? 'ONE' : 'MANY'
+        targetCardinality: isAttributeEdge ? 'ONE' : 'MANY',
+        relationshipType: isAttributeEdge ? null : '1:N' // Default relationship type
       }
     };
+
+    // AUTO-INJECT FOREIGN KEY FOR 1:N RELATIONSHIPS
+    if (!isAttributeEdge) {
+      const sourceNode = get().nodes.find(n => n.id === connection.source);
+      const targetNode = get().nodes.find(n => n.id === connection.target);
+      
+      if (sourceNode && targetNode && sourceNode.type === 'entityNode' && targetNode.type === 'entityNode') {
+        // Determine relationship type based on cardinality
+        const relType = newEdge.data.relationshipType;
+        
+        if (relType === '1:N') {
+          // Child (Many side) gets FK referencing Parent (One side)
+          const childEntityId = connection.target;
+          const parentEntityName = sourceNode.data.label;
+          const fkName = `${parentEntityName.toLowerCase()}_id`;
+          
+          // Check if FK already exists
+          const childEntity = get().nodes.find(n => n.id === childEntityId);
+          const existingFk = childEntity?.data.attributes?.find(attr => 
+            attr.isForeignKey && attr.referencedEntity === parentEntityName
+          );
+          
+          if (!existingFk) {
+            // Inject FK into child entity
+            get().addForeignKeyToEntity(childEntityId, {
+              name: fkName,
+              isKey: false,
+              isForeignKey: true,
+              referencedEntity: parentEntityName
+            });
+          }
+        }
+      }
+    }
+
     set({
       edges: addEdge(newEdge, get().edges),
       hasUnsavedChanges: true
@@ -314,6 +350,16 @@ const useFlowStore = create((set, get) => ({
       }
     };
 
+    // Determine relationship type based on cardinalities
+    const determineRelationshipType = (cardinalityA, cardinalityB) => {
+      const isAMany = cardinalityA === 'MANY' || cardinalityA === 'ZERO_MANY';
+      const isBMany = cardinalityB === 'MANY' || cardinalityB === 'ZERO_MANY';
+      
+      if (isAMany && isBMany) return 'M:N';
+      if (isAMany || isBMany) return '1:N';
+      return '1:1';
+    };
+
     // Determine if this is an identifying relationship
     const isIdentifying = connections.some(conn => conn.isIdentifying);
 
@@ -330,6 +376,47 @@ const useFlowStore = create((set, get) => ({
       }
       entityConnectionMap.get(conn.entityId).push(conn);
     });
+
+    // AUTOMATIC FOREIGN KEY INJECTION & M:N DETECTION
+    const entities = Array.from(entityConnectionMap.keys());
+    if (entities.length === 2) {
+      const [entityAId, entityBId] = entities;
+      const connA = entityConnectionMap.get(entityAId)[0];
+      const connB = entityConnectionMap.get(entityBId)[0];
+      
+      const cardA = mapCardinality(connA.cardinality);
+      const cardB = mapCardinality(connB.cardinality);
+      const relType = determineRelationshipType(cardA, cardB);
+
+      if (relType === '1:N') {
+        // Inject FK into "Many" side
+        const isAMany = cardA === 'MANY' || cardA === 'ZERO_MANY';
+        const childId = isAMany ? entityAId : entityBId;
+        const parentEntity = get().nodes.find(n => n.id === (isAMany ? entityBId : entityAId));
+        
+        if (parentEntity) {
+          const fkName = `${parentEntity.data.label.toLowerCase()}_id`;
+          const childEntity = get().nodes.find(n => n.id === childId);
+          const existingFk = childEntity?.data.attributes?.find(attr =>
+            attr.isForeignKey && attr.referencedEntity === parentEntity.data.label
+          );
+          
+          if (!existingFk) {
+            get().addForeignKeyToEntity(childId, {
+              name: fkName,
+              referencedEntity: parentEntity.data.label
+            });
+          }
+        }
+      } else if (relType === 'M:N') {
+        // Show warning about junction table
+        const suggestion = get().detectAndSuggestJunctionTable(entityAId, entityBId);
+        if (suggestion) {
+          console.warn(suggestion.message);
+          // You can trigger a UI notification here
+        }
+      }
+    }
 
     // Generate edges with smart handle positioning
     const newEdges = [];
@@ -404,6 +491,61 @@ const useFlowStore = create((set, get) => ({
       ),
       hasUnsavedChanges: true
     });
+  },
+
+  // Add Foreign Key to Entity (for 1:N relationships)
+  addForeignKeyToEntity: (entityId, fkData) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity || entity.type !== 'entityNode') return;
+
+    const existingAttributes = entity.data.attributes || [];
+    const fkAttribute = {
+      id: `fk-${Date.now()}`,
+      name: fkData.name,
+      isKey: false,
+      isForeignKey: true,
+      referencedEntity: fkData.referencedEntity
+    };
+
+    set({
+      nodes: get().nodes.map(node =>
+        node.id === entityId
+          ? { ...node, data: { ...node.data, attributes: [...existingAttributes, fkAttribute] } }
+          : node
+      ),
+      hasUnsavedChanges: true
+    });
+  },
+
+  // Detect Many-to-Many and suggest Junction Table
+  detectAndSuggestJunctionTable: (entityAId, entityBId) => {
+    const entityA = get().nodes.find(n => n.id === entityAId);
+    const entityB = get().nodes.find(n => n.id === entityBId);
+    
+    if (!entityA || !entityB) return null;
+
+    // Check if there's already an M:N edge between these entities
+    const existingManyToMany = get().edges.find(edge => {
+      const isAtoB = edge.source === entityAId && edge.target === entityBId;
+      const isBtoA = edge.source === entityBId && edge.target === entityAId;
+      const isManyToMany = edge.data?.sourceCardinality === 'MANY' && edge.data?.targetCardinality === 'MANY';
+      return (isAtoB || isBtoA) && isManyToMany;
+    });
+
+    if (existingManyToMany) {
+      // Return junction table suggestion
+      const junctionTableName = `${entityA.data.label}_${entityB.data.label}`;
+      return {
+        suggestedName: junctionTableName,
+        attributes: [
+          { name: `${entityA.data.label.toLowerCase()}_id`, isKey: true, isForeignKey: true, referencedEntity: entityA.data.label },
+          { name: `${entityB.data.label.toLowerCase()}_id`, isKey: true, isForeignKey: true, referencedEntity: entityB.data.label }
+        ],
+        message: `Many-to-Many relationship detected! Create a junction table "${junctionTableName}" with composite primary key.`
+      };
+    }
+
+    return null;
   }
 }));
 

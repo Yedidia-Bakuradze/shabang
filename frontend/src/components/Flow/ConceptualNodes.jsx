@@ -2,7 +2,7 @@ import React from 'react';
 import { Handle, Position } from 'reactflow';
 import useFlowStore from '../../store/useFlowStore';
 
-// Entity Node - Simple Rectangle
+// Entity Node - Rectangle with Header and Attribute Body
 export const EntityNode = ({ id, data, selected }) => {
   const { updateNodeLabel } = useFlowStore();
 
@@ -11,54 +11,94 @@ export const EntityNode = ({ id, data, selected }) => {
   };
 
   const isWeak = data.isWeak || false;
+  const attributes = data.attributes || [];
 
   return (
-    <div className={`bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg min-w-[150px] px-6 py-4 ${
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl min-w-[200px] overflow-hidden ${
       isWeak ? 'border-double border-4' : 'border-2'
     } ${
-      selected ? 'border-blue-400' : 'border-blue-800'
+      selected ? 'border-blue-500' : 'border-gray-400 dark:border-gray-600'
     }`}>
-      {/* Relationship Handles - Left and Right sides for entity-to-entity relationships */}
+      {/* Relationship Handles */}
       <Handle 
         type="target" 
         position={Position.Left}
         id="handle-relations-left"
-        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
       />
       <Handle 
         type="source" 
         position={Position.Right}
         id="handle-relations-right"
-        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
       />
       <Handle 
         type="target" 
         position={Position.Top}
         id="handle-relations-top"
-        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
       />
       
-      <input
-        type="text"
-        value={data.label || 'Entity'}
-        onChange={handleLabelChange}
-        className="nodrag w-full bg-transparent text-white font-semibold text-center outline-none focus:bg-blue-800 focus:bg-opacity-30 px-2 py-1 rounded transition-colors"
-        placeholder="Entity Name"
-      />
+      {/* Header: Entity Name */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2">
+        <input
+          type="text"
+          value={data.label || 'Entity'}
+          onChange={handleLabelChange}
+          className="nodrag w-full bg-transparent text-white font-bold text-center outline-none focus:bg-blue-800 focus:bg-opacity-30 px-2 py-1 rounded transition-colors"
+          placeholder="Entity Name"
+        />
+        {isWeak && (
+          <div className="text-center text-xs text-blue-200 mt-1 font-medium">
+            Weak Entity
+          </div>
+        )}
+      </div>
 
-      {isWeak && (
-        <div className="text-center text-xs text-blue-200 mt-1 font-medium">
-          Weak Entity
-        </div>
-      )}
+      {/* Body: Attribute List */}
+      <div className="px-3 py-2 space-y-1 bg-gray-50 dark:bg-gray-900">
+        {attributes.length === 0 ? (
+          <div className="text-xs text-gray-400 italic text-center py-2">
+            No attributes
+          </div>
+        ) : (
+          attributes.map((attr) => (
+            <div
+              key={attr.id}
+              className={`flex items-center gap-2 text-sm px-2 py-1 rounded ${
+                attr.isKey ? 'font-bold text-yellow-600 dark:text-yellow-400' : 
+                attr.isForeignKey ? 'italic text-gray-600 dark:text-gray-400' : 
+                'text-gray-800 dark:text-gray-200'
+              }`}
+            >
+              {/* Icon for PK or FK */}
+              {attr.isKey && (
+                <svg className="w-3 h-3 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+              {attr.isForeignKey && (
+                <svg className="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span className={attr.isKey ? 'underline decoration-2' : ''}>
+                {attr.name}
+              </span>
+              {attr.isForeignKey && (
+                <span className="text-xs text-gray-400"> (FK → {attr.referencedEntity || '?'})</span>
+              )}
+            </div>
+          ))
+        )}
+      </div>
 
-      {/* Attribute Handle - Bottom for spawning attributes */}
+      {/* Attribute Handle - Bottom */}
       <Handle 
         type="source" 
         position={Position.Bottom}
         id="handle-attributes"
         className="!bg-green-400 !w-3 !h-3 !border-2 !border-green-700"
-        style={{ bottom: '-6px' }}
       />
     </div>
   );

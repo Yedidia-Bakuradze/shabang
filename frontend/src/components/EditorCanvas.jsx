@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -8,6 +8,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import useFlowStore from '../store/useFlowStore';
 import { EntityNode, AttributeNode, RelationshipNode } from './Flow/ConceptualNodes';
+import ErdEdge from './Flow/ErdEdge';
 
 const EditorCanvas = () => {
   const { 
@@ -16,7 +17,8 @@ const EditorCanvas = () => {
     onNodesChange, 
     onEdgesChange, 
     onConnect,
-    addNode
+    addNode,
+    setSelectedNodeId
   } = useFlowStore();
 
   // Register custom node types
@@ -26,9 +28,26 @@ const EditorCanvas = () => {
     relationshipNode: RelationshipNode
   }), []);
 
-  const handleAddConnection = () => {
-    alert('💡 Tip: Drag from a node handle to another node to create a connection!');
+  // Register custom edge types
+  const edgeTypes = useMemo(() => ({
+    erdEdge: ErdEdge
+  }), []);
+
+  // Default edge options
+  const defaultEdgeOptions = {
+    type: 'smoothstep',
+    animated: false,
+    style: { strokeWidth: 2 }
   };
+
+  // Handle node selection
+  const onSelectionChange = useCallback(({ nodes }) => {
+    if (nodes.length > 0) {
+      setSelectedNodeId(nodes[0].id);
+    } else {
+      setSelectedNodeId(null);
+    }
+  }, [setSelectedNodeId]);
 
   return (
     <div className="w-full h-full">
@@ -38,8 +57,12 @@ const EditorCanvas = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
         fitView
+        deleteKeyCode={['Backspace', 'Delete']}
       >
         <Background />
         <Controls />
@@ -71,19 +94,9 @@ const EditorCanvas = () => {
               className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md transition-colors duration-200 flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
               </svg>
               Relationship
-            </button>
-            <div className="border-t border-gray-300 dark:border-gray-600 my-2"></div>
-            <button
-              onClick={handleAddConnection}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-md transition-colors duration-200 flex items-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-              </svg>
-              Help
             </button>
           </div>
         </Panel>

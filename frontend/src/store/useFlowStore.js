@@ -5,27 +5,16 @@ import {
   addEdge 
 } from 'reactflow';
 
-const initialNodes = [
-  {
-    id: '1',
-    type: 'entityNode',
-    data: { 
-      label: 'Users',
-      columns: [
-        { name: 'id', type: 'INT' },
-        { name: 'email', type: 'VARCHAR' },
-        { name: 'password', type: 'VARCHAR' }
-      ]
-    },
-    position: { x: 250, y: 100 }
-  }
-];
-
 const useFlowStore = create((set, get) => ({
-  nodes: initialNodes,
+  nodes: [],
   edges: [],
   projectId: null,
   hasUnsavedChanges: false,
+  selectedNodeId: null,
+
+  setSelectedNodeId: (id) => {
+    set({ selectedNodeId: id });
+  },
 
   setProjectId: (id) => {
     set({ projectId: id });
@@ -74,6 +63,9 @@ const useFlowStore = create((set, get) => ({
   },
 
   addNode: (nodeType = 'entityNode') => {
+    const selectedNodeId = get().selectedNodeId;
+    const selectedNode = get().nodes.find(n => n.id === selectedNodeId);
+    
     const baseNode = {
       id: `node-${Date.now()}`,
       position: {
@@ -89,19 +81,35 @@ const useFlowStore = create((set, get) => ({
           ...baseNode,
           type: 'entityNode',
           data: { 
-            label: 'New_Entity',
-            columns: []
+            label: 'New_Entity'
           }
         };
         break;
       case 'attributeNode':
-        newNode = {
-          ...baseNode,
-          type: 'attributeNode',
-          data: { 
-            label: 'New_Attribute'
-          }
-        };
+        // If an entity is selected, make the attribute a child of that entity
+        if (selectedNode && selectedNode.type === 'entityNode') {
+          newNode = {
+            ...baseNode,
+            type: 'attributeNode',
+            data: { 
+              label: 'New_Attribute'
+            },
+            parentNode: selectedNodeId,
+            extent: 'parent',
+            position: {
+              x: 50,
+              y: 80
+            }
+          };
+        } else {
+          newNode = {
+            ...baseNode,
+            type: 'attributeNode',
+            data: { 
+              label: 'New_Attribute'
+            }
+          };
+        }
         break;
       case 'relationshipNode':
         newNode = {
@@ -117,8 +125,7 @@ const useFlowStore = create((set, get) => ({
           ...baseNode,
           type: 'entityNode',
           data: { 
-            label: 'New_Table',
-            columns: []
+            label: 'New_Entity'
           }
         };
     }

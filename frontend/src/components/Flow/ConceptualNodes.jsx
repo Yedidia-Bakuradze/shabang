@@ -2,8 +2,8 @@ import React from 'react';
 import { Handle, Position } from 'reactflow';
 import useFlowStore from '../../store/useFlowStore';
 
-// Entity Node - Rectangle with columns
-export const EntityNode = ({ id, data }) => {
+// Entity Node - Simple Rectangle
+export const EntityNode = ({ id, data, selected }) => {
   const { updateNodeLabel } = useFlowStore();
 
   const handleLabelChange = (e) => {
@@ -11,56 +11,44 @@ export const EntityNode = ({ id, data }) => {
   };
 
   return (
-    <div className="bg-white border-2 border-gray-300 rounded-lg shadow-lg min-w-[200px] max-w-[300px]">
+    <div className={`bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg min-w-[150px] px-6 py-4 border-2 ${
+      selected ? 'border-blue-400' : 'border-blue-800'
+    }`}>
       <Handle 
         type="target" 
         position={Position.Left}
-        className="!bg-blue-500 !w-3 !h-3"
+        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
       />
       
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-md px-4 py-3">
-        <input
-          type="text"
-          value={data.label || 'Entity'}
-          onChange={handleLabelChange}
-          className="nodrag w-full bg-transparent text-white font-semibold text-sm text-center outline-none focus:bg-blue-800 px-2 py-1 rounded transition-colors"
-          placeholder="Entity Name"
-        />
-      </div>
-
-      <div className="bg-gray-50 rounded-b-md">
-        {data.columns && data.columns.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {data.columns.map((column, index) => (
-              <div
-                key={index}
-                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{column.name}</span>
-                  <span className="text-xs text-gray-500">{column.type}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="px-4 py-6 text-center">
-            <p className="text-gray-400 text-xs italic">No attributes</p>
-          </div>
-        )}
-      </div>
+      <input
+        type="text"
+        value={data.label || 'Entity'}
+        onChange={handleLabelChange}
+        className="nodrag w-full bg-transparent text-white font-semibold text-center outline-none focus:bg-blue-800 focus:bg-opacity-30 px-2 py-1 rounded transition-colors"
+        placeholder="Entity Name"
+      />
 
       <Handle 
         type="source" 
         position={Position.Right}
-        className="!bg-green-500 !w-3 !h-3"
+        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
+      />
+      <Handle 
+        type="target" 
+        position={Position.Top}
+        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
+      />
+      <Handle 
+        type="source" 
+        position={Position.Bottom}
+        className="!bg-blue-300 !w-3 !h-3 !border-2 !border-blue-800"
       />
     </div>
   );
 };
 
 // Attribute Node - Ellipse/Oval
-export const AttributeNode = ({ id, data }) => {
+export const AttributeNode = ({ id, data, selected }) => {
   const { updateNodeLabel } = useFlowStore();
 
   const handleLabelChange = (e) => {
@@ -72,10 +60,12 @@ export const AttributeNode = ({ id, data }) => {
       <Handle 
         type="target" 
         position={Position.Top}
-        className="!bg-purple-500 !w-3 !h-3"
+        className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
       />
       
-      <div className="bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-lg border-2 border-purple-700 px-6 py-4 min-w-[120px] flex items-center justify-center">
+      <div className={`bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-lg border-2 ${
+        selected ? 'border-purple-300' : 'border-purple-700'
+      } px-6 py-3 min-w-[120px] flex items-center justify-center`}>
         <input
           type="text"
           value={data.label || 'Attribute'}
@@ -88,14 +78,14 @@ export const AttributeNode = ({ id, data }) => {
       <Handle 
         type="source" 
         position={Position.Bottom}
-        className="!bg-purple-500 !w-3 !h-3"
+        className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
       />
     </div>
   );
 };
 
 // Relationship Node - Diamond
-export const RelationshipNode = ({ id, data }) => {
+export const RelationshipNode = ({ id, data, selected }) => {
   const { updateNodeLabel } = useFlowStore();
 
   const handleLabelChange = (e) => {
@@ -107,12 +97,14 @@ export const RelationshipNode = ({ id, data }) => {
       <Handle 
         type="target" 
         position={Position.Left}
-        className="!bg-orange-500 !w-3 !h-3"
+        className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
       />
       
       {/* Diamond Shape */}
       <div 
-        className="absolute inset-0 bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg border-2 border-orange-700 flex items-center justify-center"
+        className={`absolute inset-0 bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg border-2 ${
+          selected ? 'border-orange-300' : 'border-orange-700'
+        } flex items-center justify-center`}
         style={{ 
           transform: 'rotate(45deg)',
           transformOrigin: 'center'
@@ -143,19 +135,17 @@ export const RelationshipNode = ({ id, data }) => {
       <Handle 
         type="source" 
         position={Position.Right}
-        className="!bg-orange-500 !w-3 !h-3"
+        className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
       />
-      
       <Handle 
         type="target" 
         position={Position.Top}
-        className="!bg-orange-500 !w-3 !h-3"
+        className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
       />
-      
       <Handle 
         type="source" 
         position={Position.Bottom}
-        className="!bg-orange-500 !w-3 !h-3"
+        className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
       />
     </div>
   );

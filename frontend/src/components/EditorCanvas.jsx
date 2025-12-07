@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -7,6 +7,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import useFlowStore from '../store/useFlowStore';
+import EntityNode from './Flow/EntityNode';
 
 const EditorCanvas = () => {
   const { 
@@ -17,6 +18,11 @@ const EditorCanvas = () => {
     onConnect,
     addNode
   } = useFlowStore();
+
+  // Register custom node types
+  const nodeTypes = useMemo(() => ({ 
+    entityNode: EntityNode 
+  }), []);
 
   const handleAddConnection = () => {
     alert('💡 Tip: Drag from a node handle to another node to create a connection!');
@@ -30,6 +36,7 @@ const EditorCanvas = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        nodeTypes={nodeTypes}
         fitView
       >
         <Background />

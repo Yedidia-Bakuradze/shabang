@@ -22,9 +22,16 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
             closeModal();
         } catch (error) {
             console.error("Failed to create project", error);
-            toast.error('Failed to create project');
+            if (error.response?.status === 403) {
+                toast.error('Authentication failed. Please login again.');
+            } else if (error.response?.status === 401) {
+                toast.error('Your session has expired. Please login again.');
+            } else {
+                toast.error(error.response?.data?.error || 'Failed to create project');
+            }
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (

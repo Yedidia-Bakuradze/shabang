@@ -1,66 +1,61 @@
 import React, { useState } from 'react';
 import useFlowStore from '../../../store/useFlowStore';
+import AttributeConnections from './AttributeConnections'; // Shared component
 
 const RelationshipPanel = ({ node }) => {
-  const { 
-    updateNodeData, 
-    getEntityNodes, 
-    updateRelationshipConnections,
-    addAttributeToEntity 
+  const {
+    updateNodeData,
+    updateNodeLabel, // Import updateNodeLabel
+    getEntityNodes,
+    edges,
+    connectEntityToRelationship,
+    disconnectEntityFromRelationship,
+    updateEdgeCardinality,
   } = useFlowStore();
-  
-  const [newAttributeName, setNewAttributeName] = useState('');
+
+  const [selectedEntityId, setSelectedEntityId] = useState('');
+
+  const connectedEntityIds = node.data.entityConnections || [];
   const entityNodes = getEntityNodes();
-  
-  const connections = node.data.connections || [];
-  const attributes = node.data.attributes || [];
+
+  const getEdgeForEntity = (entityId) => {
+    return edges.find(edge =>
+      (edge.source === entityId && edge.target === node.id) ||
+      (edge.source === node.id && edge.target === entityId)
+    );
+  };
 
   const handleNameChange = (e) => {
     updateNodeData(node.id, { label: e.target.value });
   };
 
-  const handleConnectionChange = (index, field, value) => {
-    const updatedConnections = [...connections];
-    
-    if (index >= updatedConnections.length) {
-      updatedConnections.push({ entityId: '', cardinality: '1' });
-    }
-    
-    updatedConnections[index] = {
-      ...updatedConnections[index],
-      [field]: value
-    };
-    
-    updateRelationshipConnections(node.id, updatedConnections);
-  };
-
-  const handleRemoveConnection = (index) => {
-    const updatedConnections = connections.filter((_, i) => i !== index);
-    updateRelationshipConnections(node.id, updatedConnections);
+  // NEW: Handle renaming the connected entity
+  const handleEntityNameChange = (entityId, newName) => {
+    updateNodeLabel(entityId, newName);
   };
 
   const handleAddConnection = () => {
-    const updatedConnections = [...connections, { entityId: '', cardinality: '1' }];
-    updateRelationshipConnections(node.id, updatedConnections);
+    if (!selectedEntityId) return;
+    connectEntityToRelationship(node.id, selectedEntityId);
+    setSelectedEntityId('');
   };
 
-  const handleAddAttribute = () => {
-    if (!newAttributeName.trim()) return;
-    
-    // For relationships, we store attributes in the data but also spawn nodes
-    const attributeId = `attr-rel-${Date.now()}`;
-    const newAttr = {
-      id: attributeId,
-      name: newAttributeName.trim(),
-      isKey: false
-    };
-    
-    updateNodeData(node.id, {
-      attributes: [...attributes, newAttr]
-    });
-    
-    setNewAttributeName('');
+  const handleRemoveConnection = (entityId) => {
+    if (window.confirm("Remove this connection?")) {
+      disconnectEntityFromRelationship(node.id, entityId);
+    }
   };
+
+  const handleCardinalityChange = (entityId, newCardinality) => {
+    const targetEdge = getEdgeForEntity(entityId);
+    if (targetEdge) {
+      updateEdgeCardinality(targetEdge.id, newCardinality);
+    }
+  };
+
+  const availableEntities = entityNodes.filter(
+    e => !connectedEntityIds.includes(e.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -74,11 +69,11 @@ const RelationshipPanel = ({ node }) => {
           value={node.data.label || ''}
           onChange={handleNameChange}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-          placeholder="e.g., Works For, Owns"
+          placeholder="e.g., Works For"
         />
       </div>
 
-      {/* Connections Section */}
+      {/* --- ENTITY CONNECTIONS --- */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -86,130 +81,76 @@ const RelationshipPanel = ({ node }) => {
           </label>
         </div>
 
-        {/* Connection List */}
         <div className="space-y-3 mb-3">
-          {connections.length === 0 ? (
+          {connectedEntityIds.length === 0 ? (
             <div className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md">
-              No connections yet. Add entities below.
+              No entities connected.
             </div>
           ) : (
-            connections.map((conn, index) => (
-              <div
-                key={index}
-                className="p-3 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600 space-y-2"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                    Connection {index + 1}
-                  </span>
-                  <button
-                    onClick={() => handleRemoveConnection(index)}
-                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                    title="Remove connection"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+            connectedEntityIds.map((entityId, index) => {
+              const entityNode = entityNodes.find(e => e.id === entityId);
+              const edge = getEdgeForEntity(entityId);
+              const currentCardinality = edge ? edge.label : 'N';
+
+              return (
+                <div key={entityId} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600 space-y-2 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Connection {index + 1}</span>
+                    <button onClick={() => handleRemoveConnection(entityId)} className="text-gray-400 hover:text-red-500 transition-colors" title="Remove Connection">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+
+                  {/* Entity Name (Editable) */}
+                  <input
+                    type="text"
+                    value={entityNode ? entityNode.data.label : ''}
+                    onChange={(e) => handleEntityNameChange(entityId, e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Entity Name"
+                  />
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">Card:</label>
+                    <select
+                      value={currentCardinality}
+                      onChange={(e) => handleCardinalityChange(entityId, e.target.value)}
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="1">One (1)</option>
+                      <option value="N">Many (N)</option>
+                      <option value="0..1">Zero or One (0..1)</option>
+                      <option value="1..N">One or Many (1..N)</option>
+                    </select>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                    Entity
-                  </label>
-                  <select
-                    value={conn.entityId || ''}
-                    onChange={(e) => handleConnectionChange(index, 'entityId', e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">Select Entity...</option>
-                    {entityNodes.map((entity) => (
-                      <option key={entity.id} value={entity.id}>
-                        {entity.data.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                    Cardinality
-                  </label>
-                  <select
-                    value={conn.cardinality || '1'}
-                    onChange={(e) => handleConnectionChange(index, 'cardinality', e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="1">One (1)</option>
-                    <option value="N">Many (N)</option>
-                    <option value="0..1">Zero or One (0..1)</option>
-                    <option value="1..N">One or Many (1..N)</option>
-                  </select>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <button
-          onClick={handleAddConnection}
-          className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500"
-        >
-          + Add Entity Connection
-        </button>
-
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Relationships should connect at least 2 entities
-        </p>
-      </div>
-
-      {/* Relationship Attributes */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Relationship Attributes
-          </label>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            Optional
-          </span>
-        </div>
-
-        <div className="space-y-2 mb-3">
-          {attributes.length === 0 ? (
-            <div className="text-xs text-gray-500 dark:text-gray-400 italic text-center py-3">
-              No attributes (e.g., Start Date, End Date)
-            </div>
-          ) : (
-            attributes.map((attr) => (
-              <div
-                key={attr.id}
-                className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
-              >
-                <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                  {attr.name}
-                </span>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
         <div className="flex gap-2">
-          <input
-            type="text"
-            value={newAttributeName}
-            onChange={(e) => setNewAttributeName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleAddAttribute()}
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            placeholder="Attribute name"
-          />
-          <button
-            onClick={handleAddAttribute}
-            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors"
+          <select
+            value={selectedEntityId}
+            onChange={(e) => setSelectedEntityId(e.target.value)}
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
           >
-            Add
+            <option value="">Select Entity...</option>
+            {availableEntities.map(node => (
+              <option key={node.id} value={node.id}>{node.data.label}</option>
+            ))}
+          </select>
+          <button onClick={handleAddConnection} disabled={!selectedEntityId} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors">
+            Link
           </button>
         </div>
       </div>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4"></div>
+
+      {/* --- ATTRIBUTE CONNECTIONS --- */}
+      <AttributeConnections node={node} />
+
     </div>
   );
 };

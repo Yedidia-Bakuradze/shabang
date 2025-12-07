@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { 
-  applyNodeChanges, 
-  applyEdgeChanges, 
-  addEdge 
+import {
+  applyNodeChanges,
+  applyEdgeChanges,
+  addEdge
 } from 'reactflow';
 
 const useFlowStore = create((set, get) => ({
@@ -20,9 +20,17 @@ const useFlowStore = create((set, get) => ({
     set({ projectId: id });
   },
 
+  setEdges: (updateFnOrEdges) => {
+    const currentEdges = get().edges;
+    const newEdges = typeof updateFnOrEdges === 'function'
+      ? updateFnOrEdges(currentEdges)
+      : updateFnOrEdges;
+    set({ edges: newEdges, hasUnsavedChanges: true });
+  },
+
   loadProjectData: (entities) => {
     if (entities && entities.nodes && entities.edges) {
-      set({ 
+      set({
         nodes: entities.nodes,
         edges: entities.edges,
         hasUnsavedChanges: false
@@ -42,15 +50,117 @@ const useFlowStore = create((set, get) => ({
   },
 
   onNodesChange: (changes) => {
+    const currentNodes = get().nodes;
+
+    // Check for deletions to sync with Data
+    changes.forEach(change => {
+      if (change.type === 'remove') {
+        const removedNode = currentNodes.find(n => n.id === change.id);
+
+        if (removedNode && removedNode.type === 'attributeNode') {
+          // Sync Entity Deletion
+          const connectedEntity = currentNodes.find(n =>
+            n.type === 'entityNode' &&
+            n.data.attributes &&
+            n.data.attributes.some(attr => attr.id === removedNode.id)
+          );
+          // Sync Relationship Deletion
+          const connectedRel = currentNodes.find(n =>
+            n.type === 'relationshipNode' &&
+            n.data.attributes &&
+            n.data.attributes.some(attr => attr.id === removedNode.id)
+          );
+          // Actual cleanup happens in post-processing map below
+        }
+      }
+    });
+
+    const newNodes = applyNodeChanges(changes, currentNodes);
+
+    // POST-PROCESSING: Ensure data consistency after deletion
+    const activeNodeIds = new Set(newNodes.map(n => n.id));
+
+    const syncedNodes = newNodes.map(node => {
+      // Clean Entities
+      if (node.type === 'entityNode' && node.data.attributes) {
+        const validAttributes = node.data.attributes.filter(attr => activeNodeIds.has(attr.id));
+        if (validAttributes.length !== node.data.attributes.length) {
+          return { ...node, data: { ...node.data, attributes: validAttributes } };
+        }
+      }
+      // Clean Relationships
+      if (node.type === 'relationshipNode' && node.data.attributes) {
+        const validAttributes = node.data.attributes.filter(attr => activeNodeIds.has(attr.id));
+        if (validAttributes.length !== node.data.attributes.length) {
+          return { ...node, data: { ...node.data, attributes: validAttributes } };
+        }
+      }
+      return node;
+    });
+
     set({
-      nodes: applyNodeChanges(changes, get().nodes),
+      nodes: syncedNodes,
       hasUnsavedChanges: true
     });
   },
 
   onEdgesChange: (changes) => {
+    const currentEdges = get().edges;
+    const currentNodes = get().nodes;
+    let updatedNodes = [...currentNodes];
+
+    changes.forEach(change => {
+      if (change.type === 'remove') {
+        const removedEdge = currentEdges.find(e => e.id === change.id);
+
+        if (removedEdge) {
+          const sourceNode = currentNodes.find(n => n.id === removedEdge.source);
+          const targetNode = currentNodes.find(n => n.id === removedEdge.target);
+
+          if (sourceNode && targetNode) {
+            // CASE 1: Entity <-> Attribute Edge Deleted
+            if (
+              (sourceNode.type === 'entityNode' && targetNode.type === 'attributeNode') ||
+              (sourceNode.type === 'attributeNode' && targetNode.type === 'entityNode')
+            ) {
+              const entityNode = sourceNode.type === 'entityNode' ? sourceNode : targetNode;
+              const attributeId = sourceNode.type === 'attributeNode' ? sourceNode.id : targetNode.id;
+              updatedNodes = updatedNodes.map(node => node.id === entityNode.id ? {
+                ...node, data: { ...node.data, attributes: (node.data.attributes || []).filter(attr => attr.id !== attributeId) }
+              } : node);
+            }
+
+            // CASE 2: Relationship <-> Attribute Edge Deleted
+            else if (
+              (sourceNode.type === 'relationshipNode' && targetNode.type === 'attributeNode') ||
+              (sourceNode.type === 'attributeNode' && targetNode.type === 'relationshipNode')
+            ) {
+              const relNode = sourceNode.type === 'relationshipNode' ? sourceNode : targetNode;
+              const attributeId = sourceNode.type === 'attributeNode' ? sourceNode.id : targetNode.id;
+              updatedNodes = updatedNodes.map(node => node.id === relNode.id ? {
+                ...node, data: { ...node.data, attributes: (node.data.attributes || []).filter(attr => attr.id !== attributeId) }
+              } : node);
+            }
+
+            // CASE 3: Entity <-> Relationship Edge Deleted
+            else if (
+              (sourceNode.type === 'entityNode' && targetNode.type === 'relationshipNode') ||
+              (sourceNode.type === 'relationshipNode' && targetNode.type === 'entityNode')
+            ) {
+              const relNode = sourceNode.type === 'relationshipNode' ? sourceNode : targetNode;
+              const entityId = sourceNode.type === 'entityNode' ? sourceNode.id : targetNode.id;
+              updatedNodes = updatedNodes.map(node => node.id === relNode.id ? {
+                ...node, data: { ...node.data, entityConnections: (node.data.entityConnections || []).filter(id => id !== entityId) }
+              } : node);
+            }
+          }
+        }
+      }
+    });
+
     set({
-      edges: applyEdgeChanges(changes, get().edges),
+      edges: applyEdgeChanges(changes, currentEdges),
+      nodes: updatedNodes,
       hasUnsavedChanges: true
     });
   },
@@ -63,576 +173,252 @@ const useFlowStore = create((set, get) => ({
 
     if (!sourceNode || !targetNode) return;
 
-    // CASE A: Entity-to-Entity Connection (Smart ERD)
-    // If both are entities, insert a Relationship Node (Diamond) in between
     if (sourceNode.type === 'entityNode' && targetNode.type === 'entityNode') {
-      // 1. Calculate Midpoint
+      // Smart ERD Insert
       const midX = (sourceNode.position.x + targetNode.position.x) / 2;
       const midY = (sourceNode.position.y + targetNode.position.y) / 2;
-
-      // 2. Create Relationship Node (Diamond)
       const relationshipId = `rel-${Date.now()}`;
-      const relationshipNode = {
-        id: relationshipId,
-        type: 'relationshipNode',
-        position: { x: midX, y: midY },
-        data: { 
-          label: 'Relationship', 
-          shape: 'diamond',
-          nodeType: 'relationship'
-        }
-      };
-
-      // 3. Create 2 Edges
-      // Edge 1: Source -> Diamond
-      const edge1 = {
-        id: `edge-${source}-${relationshipId}`,
-        source: source,
-        target: relationshipId,
-        type: 'default',
-        style: { stroke: '#3b82f6', strokeWidth: 2 },
-        label: '1' // Default cardinality
-      };
-
-      // Edge 2: Diamond -> Target
-      const edge2 = {
-        id: `edge-${relationshipId}-${target}`,
-        source: relationshipId,
-        target: target,
-        type: 'default',
-        style: { stroke: '#3b82f6', strokeWidth: 2 },
-        label: 'N' // Default cardinality
-      };
-
-      // 4. Update Store
-      set({
-        nodes: [...nodes, relationshipNode],
-        edges: [...get().edges, edge1, edge2],
-        hasUnsavedChanges: true
-      });
-    } 
-    // CASE B: Entity-to-Attribute or other connections
+      const relationshipNode = { id: relationshipId, type: 'relationshipNode', position: { x: midX, y: midY }, data: { label: 'Relationship', entityConnections: [source, target], attributes: [] } };
+      const edge1 = { id: `edge-${source}-${relationshipId}`, source: source, target: relationshipId, type: 'erdEdge', label: '1', data: { edgeType: 'relationship', sourceCardinality: 'ONE', targetCardinality: 'ONE' } };
+      const edge2 = { id: `edge-${relationshipId}-${target}`, source: relationshipId, target: target, type: 'erdEdge', label: 'N', data: { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE' } };
+      set({ nodes: [...nodes, relationshipNode], edges: [...get().edges, edge1, edge2], hasUnsavedChanges: true });
+    }
     else {
-      // Standard direct connection
-      const newEdge = {
-        ...connection,
-        type: 'default', // Use default edge for simple connections
-        style: { stroke: '#94a3b8', strokeWidth: 1 }
-      };
+      let edgeData = {};
+      let label = null;
+      let newNodes = [...nodes];
 
-      set({
-        edges: addEdge(newEdge, get().edges),
-        hasUnsavedChanges: true
-      });
+      // Entity <-> Attribute
+      if ((sourceNode.type === 'entityNode' && targetNode.type === 'attributeNode') || (sourceNode.type === 'attributeNode' && targetNode.type === 'entityNode')) {
+        edgeData = { edgeType: 'attribute' };
+        const entityNode = sourceNode.type === 'entityNode' ? sourceNode : targetNode;
+        const attributeNode = sourceNode.type === 'attributeNode' ? sourceNode : targetNode;
+        const currentAttributes = entityNode.data.attributes || [];
+        if (!currentAttributes.some(attr => attr.id === attributeNode.id)) {
+          const updatedEntityNode = { ...entityNode, data: { ...entityNode.data, attributes: [...currentAttributes, { id: attributeNode.id, name: attributeNode.data.label, isKey: attributeNode.data.isKey || false }] } };
+          newNodes = newNodes.map(n => n.id === entityNode.id ? updatedEntityNode : n);
+        }
+      }
+      // Relationship <-> Attribute
+      else if ((sourceNode.type === 'relationshipNode' && targetNode.type === 'attributeNode') || (sourceNode.type === 'attributeNode' && targetNode.type === 'relationshipNode')) {
+        edgeData = { edgeType: 'attribute' };
+        const relNode = sourceNode.type === 'relationshipNode' ? sourceNode : targetNode;
+        const attributeNode = sourceNode.type === 'attributeNode' ? sourceNode : targetNode;
+        const currentAttributes = relNode.data.attributes || [];
+        if (!currentAttributes.some(attr => attr.id === attributeNode.id)) {
+          const updatedRelNode = { ...relNode, data: { ...relNode.data, attributes: [...currentAttributes, { id: attributeNode.id, name: attributeNode.data.label, isKey: false }] } };
+          newNodes = newNodes.map(n => n.id === relNode.id ? updatedRelNode : n);
+        }
+      }
+      // Attribute <-> Attribute
+      else if (sourceNode.type === 'attributeNode' && targetNode.type === 'attributeNode') {
+        edgeData = { edgeType: 'attribute' };
+      }
+      // Entity <-> Relationship
+      else if ((sourceNode.type === 'entityNode' && targetNode.type === 'relationshipNode') || (sourceNode.type === 'relationshipNode' && targetNode.type === 'entityNode')) {
+        edgeData = { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE' };
+        label = 'N';
+        const relNode = sourceNode.type === 'relationshipNode' ? sourceNode : targetNode;
+        const entityId = sourceNode.type === 'entityNode' ? sourceNode.id : targetNode.id;
+        if (!relNode.data.entityConnections?.includes(entityId)) {
+          const updatedRelNode = { ...relNode, data: { ...relNode.data, entityConnections: [...(relNode.data.entityConnections || []), entityId] } };
+          newNodes = newNodes.map(n => n.id === relNode.id ? updatedRelNode : n);
+        }
+      }
+
+      set({ nodes: newNodes, edges: addEdge({ ...connection, type: 'erdEdge', label: label, data: edgeData }, get().edges), hasUnsavedChanges: true });
     }
   },
 
   addNode: (nodeType = 'entityNode') => {
-    const baseNode = {
-      id: `node-${Date.now()}`,
-      position: {
-        x: Math.random() * 400 + 100,
-        y: Math.random() * 400 + 100
-      }
-    };
+    const baseNode = { id: `node-${Date.now()}`, position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 } };
+    let newNode = { ...baseNode, type: nodeType, data: { label: `New_${nodeType}`, attributes: [] } };
+    if (nodeType === 'attributeNode') newNode.data = { label: 'New_Attribute', isKey: false };
+    if (nodeType === 'relationshipNode') newNode.data = { label: 'New_Relationship', entityConnections: [], attributes: [] };
 
-    let newNode;
-    switch (nodeType) {
-      case 'entityNode':
-        newNode = {
-          ...baseNode,
-          type: 'entityNode',
-          data: { 
-            label: 'New_Entity',
-            attributes: []
-          }
-        };
-        break;
-      case 'attributeNode':
-        newNode = {
-          ...baseNode,
-          type: 'attributeNode',
-          data: { 
-            label: 'New_Attribute',
-            isKey: false
-          }
-        };
-        break;
-      case 'relationshipNode':
-        newNode = {
-          ...baseNode,
-          type: 'relationshipNode',
-          data: { 
-            label: 'New_Relationship',
-            connections: [],
-            attributes: []
-          }
-        };
-        break;
-      case 'isaNode':
-        newNode = {
-          ...baseNode,
-          type: 'isaNode',
-          data: { 
-            label: 'ISA',
-            isDisjoint: false,
-            isTotal: false
-          }
-        };
-        break;
-      default:
-        newNode = {
-          ...baseNode,
-          type: 'entityNode',
-          data: { 
-            label: 'New_Entity',
-            attributes: []
-          }
-        };
-    }
-
-    set({
-      nodes: [...get().nodes, newNode],
-      hasUnsavedChanges: true
-    });
+    set({ nodes: [...get().nodes, newNode], hasUnsavedChanges: true });
   },
 
   updateNodeData: (nodeId, newData) => {
     set({
-      nodes: get().nodes.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              ...newData
-            }
-          };
-        }
-        return node;
-      }),
+      nodes: get().nodes.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, ...newData } } : node),
       hasUnsavedChanges: true
     });
   },
 
   updateNodeLabel: (nodeId, newLabel) => {
-    set({
-      nodes: get().nodes.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              label: newLabel
-            }
-          };
+    const nodes = get().nodes;
+    const targetNode = nodes.find(n => n.id === nodeId);
+    let updatedNodes = nodes.map((node) =>
+      node.id === nodeId ? { ...node, data: { ...node.data, label: newLabel } } : node
+    );
+
+    // Sync label with Parent Data (Entity or Relationship)
+    if (targetNode && targetNode.type === 'attributeNode') {
+      updatedNodes = updatedNodes.map(node => {
+        // Update Entity
+        if (node.type === 'entityNode' && node.data.attributes?.some(attr => attr.id === nodeId)) {
+          return { ...node, data: { ...node.data, attributes: node.data.attributes.map(attr => attr.id === nodeId ? { ...attr, name: newLabel } : attr) } };
+        }
+        // Update Relationship
+        if (node.type === 'relationshipNode' && node.data.attributes?.some(attr => attr.id === nodeId)) {
+          return { ...node, data: { ...node.data, attributes: node.data.attributes.map(attr => attr.id === nodeId ? { ...attr, name: newLabel } : attr) } };
         }
         return node;
-      }),
+      });
+    }
+
+    set({ nodes: updatedNodes, hasUnsavedChanges: true });
+  },
+
+  // --- ENTITY ATTRIBUTE ACTIONS ---
+  connectAttributeToEntity: (entityId, attributeId) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    const attribute = get().nodes.find(n => n.id === attributeId);
+    if (!entity || !attribute) return;
+    if (entity.data.attributes?.some(attr => attr.id === attributeId)) return;
+    const newEdge = { id: `edge-${entityId}-${attributeId}`, source: entityId, sourceHandle: 'handle-attributes', target: attributeId, type: 'erdEdge', data: { edgeType: 'attribute' } };
+    const updatedAttributes = [...(entity.data.attributes || []), { id: attributeId, name: attribute.data.label, isKey: attribute.data.isKey || false }];
+    set({ nodes: get().nodes.map(n => n.id === entityId ? { ...n, data: { ...n.data, attributes: updatedAttributes } } : n), edges: addEdge(newEdge, get().edges), hasUnsavedChanges: true });
+  },
+
+  disconnectAttributeFromEntity: (entityId, attributeId) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity) return;
+    set({
+      nodes: get().nodes.map(n => n.id === entityId ? { ...n, data: { ...n.data, attributes: n.data.attributes.filter(attr => attr.id !== attributeId) } } : n),
+      edges: get().edges.filter(edge => !((edge.source === entityId && edge.target === attributeId) || (edge.source === attributeId && edge.target === entityId))),
       hasUnsavedChanges: true
     });
   },
 
-  // Add attribute to entity - spawns a new AttributeNode
   addAttributeToEntity: (entityId, attributeData) => {
     const entity = get().nodes.find(n => n.id === entityId);
     if (!entity) return;
-
     const attributeId = `attr-${Date.now()}`;
     const existingAttributes = entity.data.attributes || [];
-    
-    // Calculate position near the entity
     const offsetX = (existingAttributes.length % 3) * 150;
     const offsetY = Math.floor(existingAttributes.length / 3) * 100 + 100;
+    const newAttributeNode = { id: attributeId, type: 'attributeNode', position: { x: entity.position.x + offsetX, y: entity.position.y + offsetY }, data: { label: attributeData.name || 'New_Attribute', isKey: attributeData.isKey || false, entityId: entityId } };
+    const newEdge = { id: `edge-${entityId}-${attributeId}`, source: entityId, sourceHandle: 'handle-attributes', target: attributeId, type: 'erdEdge', data: { edgeType: 'attribute' } };
+    const updatedAttributes = [...existingAttributes, { id: attributeId, name: attributeData.name, isKey: attributeData.isKey }];
+    set({ nodes: [...get().nodes.map(n => n.id === entityId ? { ...n, data: { ...n.data, attributes: updatedAttributes } } : n), newAttributeNode], edges: [...get().edges, newEdge], hasUnsavedChanges: true });
+  },
 
-    // Create new attribute node
-    const newAttributeNode = {
-      id: attributeId,
-      type: 'attributeNode',
-      position: {
-        x: entity.position.x + offsetX,
-        y: entity.position.y + offsetY
-      },
-      data: {
-        label: attributeData.name || 'New_Attribute',
-        isKey: attributeData.isKey || false,
-        entityId: entityId
+  updateEntityAttribute: (entityId, attributeId, attributeData) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity) return;
+    const updatedAttributes = entity.data.attributes.map(attr => attr.id === attributeId ? { ...attr, ...attributeData } : attr);
+    const nodes = get().nodes.map(node => {
+      if (node.id === entityId) return { ...node, data: { ...node.data, attributes: updatedAttributes } };
+      if (node.id === attributeId) {
+        let newData = { ...node.data };
+        if (attributeData.name) newData.label = attributeData.name;
+        if (attributeData.isKey !== undefined) newData.isKey = attributeData.isKey;
+        return { ...node, data: newData };
       }
-    };
+      return node;
+    });
+    set({ nodes: nodes, hasUnsavedChanges: true });
+  },
 
-    // Create edge connecting entity to attribute (simple line, no markers)
-    const newEdge = {
-      id: `edge-${entityId}-${attributeId}`,
-      source: entityId,
-      sourceHandle: 'handle-attributes',
-      target: attributeId,
-      type: 'erdEdge',
-      animated: false,
-      data: {
-        edgeType: 'attribute', // Mark as attribute edge for simple styling
-        sourceCardinality: 'ONE',
-        targetCardinality: 'ONE'
-      }
-    };
-
-    // Update entity's attribute list
-    const updatedAttributes = [
-      ...existingAttributes,
-      {
-        id: attributeId,
-        name: attributeData.name || 'New_Attribute',
-        isKey: attributeData.isKey || false
-      }
-    ];
-
+  removeEntityAttribute: (entityId, attributeId) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity) return;
     set({
-      nodes: [
-        ...get().nodes.map(node => 
-          node.id === entityId 
-            ? { ...node, data: { ...node.data, attributes: updatedAttributes } }
-            : node
-        ),
-        newAttributeNode
-      ],
+      nodes: get().nodes.filter(n => n.id !== attributeId).map(n => n.id === entityId ? { ...n, data: { ...n.data, attributes: n.data.attributes.filter(a => a.id !== attributeId) } } : n),
+      edges: get().edges.filter(e => e.source !== attributeId && e.target !== attributeId),
+      hasUnsavedChanges: true
+    });
+  },
+
+  // --- RELATIONSHIP CONNECTIONS ---
+  connectEntityToRelationship: (relationshipId, entityId) => {
+    const relNode = get().nodes.find(n => n.id === relationshipId);
+    if (!relNode || relNode.data.entityConnections?.includes(entityId)) return;
+    const newEdgeId = `edge-${entityId}-${relationshipId}-${Date.now()}`;
+    const newEdge = { id: newEdgeId, source: entityId, sourceHandle: 'handle-relations-right', target: relationshipId, type: 'erdEdge', label: 'N', data: { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE', role: null } };
+    set({
+      nodes: get().nodes.map(n => n.id === relationshipId ? { ...n, data: { ...n.data, entityConnections: [...(n.data.entityConnections || []), entityId] } } : n),
       edges: [...get().edges, newEdge],
       hasUnsavedChanges: true
     });
   },
 
-  // Update attribute in entity's list and sync with node
-  updateEntityAttribute: (entityId, attributeId, attributeData) => {
-    const entity = get().nodes.find(n => n.id === entityId);
-    if (!entity) return;
-
-    const updatedAttributes = entity.data.attributes.map(attr => 
-      attr.id === attributeId ? { ...attr, ...attributeData } : attr
-    );
-
+  disconnectEntityFromRelationship: (relationshipId, entityId) => {
+    const relNode = get().nodes.find(n => n.id === relationshipId);
+    if (!relNode) return;
     set({
-      nodes: get().nodes.map(node => {
-        if (node.id === entityId) {
-          return { ...node, data: { ...node.data, attributes: updatedAttributes } };
-        }
-        if (node.id === attributeId) {
-          return { 
-            ...node, 
-            data: { 
-              ...node.data, 
-              label: attributeData.name,
-              isKey: attributeData.isKey 
-            } 
-          };
-        }
-        return node;
-      }),
+      nodes: get().nodes.map(n => n.id === relationshipId ? { ...n, data: { ...n.data, entityConnections: (n.data.entityConnections || []).filter(id => id !== entityId) } } : n),
+      edges: get().edges.filter(e => !((e.source === entityId && e.target === relationshipId) || (e.source === relationshipId && e.target === entityId))),
       hasUnsavedChanges: true
     });
   },
 
-  // Remove attribute from entity
-  removeEntityAttribute: (entityId, attributeId) => {
-    const entity = get().nodes.find(n => n.id === entityId);
-    if (!entity) return;
+  // --- RELATIONSHIP ATTRIBUTE ACTIONS ---
+  connectAttributeToRelationship: (relationshipId, attributeId) => {
+    const rel = get().nodes.find(n => n.id === relationshipId);
+    const attribute = get().nodes.find(n => n.id === attributeId);
+    if (!rel || !attribute) return;
+    if (rel.data.attributes?.some(attr => attr.id === attributeId)) return;
+    const newEdge = { id: `edge-${relationshipId}-${attributeId}`, source: relationshipId, target: attributeId, type: 'erdEdge', data: { edgeType: 'attribute' } };
+    const updatedAttributes = [...(rel.data.attributes || []), { id: attributeId, name: attribute.data.label, isKey: false }];
+    set({ nodes: get().nodes.map(n => n.id === relationshipId ? { ...n, data: { ...n.data, attributes: updatedAttributes } } : n), edges: addEdge(newEdge, get().edges), hasUnsavedChanges: true });
+  },
 
-    const updatedAttributes = entity.data.attributes.filter(attr => attr.id !== attributeId);
-
+  disconnectAttributeFromRelationship: (relationshipId, attributeId) => {
+    const rel = get().nodes.find(n => n.id === relationshipId);
+    if (!rel) return;
     set({
-      nodes: get().nodes
-        .filter(node => node.id !== attributeId)
-        .map(node => 
-          node.id === entityId 
-            ? { ...node, data: { ...node.data, attributes: updatedAttributes } }
-            : node
-        ),
-      edges: get().edges.filter(edge => 
-        edge.source !== attributeId && edge.target !== attributeId
-      ),
+      nodes: get().nodes.map(n => n.id === relationshipId ? { ...n, data: { ...n.data, attributes: n.data.attributes.filter(attr => attr.id !== attributeId) } } : n),
+      edges: get().edges.filter(edge => !((edge.source === relationshipId && edge.target === attributeId) || (edge.source === attributeId && edge.target === relationshipId))),
       hasUnsavedChanges: true
     });
   },
 
-  // Update relationship connections
-  updateRelationshipConnections: (relationshipId, connections) => {
-    const relationship = get().nodes.find(n => n.id === relationshipId);
-    if (!relationship) return;
-
-    // Map cardinality values from UI to marker format
-    const mapCardinality = (value) => {
-      switch(value) {
-        case '1': return 'ONE';
-        case 'N': case 'M': return 'MANY';
-        case '0..1': return 'ZERO_ONE';
-        case '1..N': return 'ZERO_MANY';
-        default: return 'ONE';
-      }
-    };
-
-    // Determine relationship type based on cardinalities
-    const determineRelationshipType = (cardinalityA, cardinalityB) => {
-      const isAMany = cardinalityA === 'MANY' || cardinalityA === 'ZERO_MANY';
-      const isBMany = cardinalityB === 'MANY' || cardinalityB === 'ZERO_MANY';
-      
-      if (isAMany && isBMany) return 'M:N';
-      if (isAMany || isBMany) return '1:N';
-      return '1:1';
-    };
-
-    // Get previous connections to detect changes
-    const prevConnections = relationship.data.connections || [];
-
-    // Determine if this is an identifying relationship
-    const isIdentifying = connections.some(conn => conn.isIdentifying);
-
-    // Remove old edges connected to this relationship
-    const filteredEdges = get().edges.filter(edge => 
-      edge.source !== relationshipId && edge.target !== relationshipId
-    );
-
-    // Group connections by entityId to detect recursive relationships
-    const entityConnectionMap = new Map();
-    connections.filter(conn => conn.entityId).forEach(conn => {
-      if (!entityConnectionMap.has(conn.entityId)) {
-        entityConnectionMap.set(conn.entityId, []);
-      }
-      entityConnectionMap.get(conn.entityId).push(conn);
-    });
-
-    // AUTOMATIC FOREIGN KEY INJECTION & REMOVAL
-    const entities = Array.from(entityConnectionMap.keys());
-    if (entities.length === 2) {
-      const [entityAId, entityBId] = entities;
-      const connA = entityConnectionMap.get(entityAId)[0];
-      const connB = entityConnectionMap.get(entityBId)[0];
-      
-      const cardA = mapCardinality(connA.cardinality);
-      const cardB = mapCardinality(connB.cardinality);
-      const relType = determineRelationshipType(cardA, cardB);
-
-      // Get previous relationship type if exists
-      const prevEntityMap = new Map();
-      prevConnections.filter(conn => conn.entityId).forEach(conn => {
-        if (!prevEntityMap.has(conn.entityId)) {
-          prevEntityMap.set(conn.entityId, []);
-        }
-        prevEntityMap.get(conn.entityId).push(conn);
-      });
-
-      let prevRelType = null;
-      if (prevEntityMap.size === 2) {
-        const prevEntities = Array.from(prevEntityMap.keys());
-        if (prevEntities.includes(entityAId) && prevEntities.includes(entityBId)) {
-          const prevConnA = prevEntityMap.get(entityAId)[0];
-          const prevConnB = prevEntityMap.get(entityBId)[0];
-          const prevCardA = mapCardinality(prevConnA.cardinality);
-          const prevCardB = mapCardinality(prevConnB.cardinality);
-          prevRelType = determineRelationshipType(prevCardA, prevCardB);
-        }
-      }
-
-      // Handle FK based on relationship type change
-      if (relType === '1:N') {
-        // Inject FK into "Many" side
-        const isAMany = cardA === 'MANY' || cardA === 'ZERO_MANY';
-        const childId = isAMany ? entityAId : entityBId;
-        const parentId = isAMany ? entityBId : entityAId;
-        const parentEntity = get().nodes.find(n => n.id === parentId);
-        
-        if (parentEntity) {
-          const fkName = `${parentEntity.data.label.toLowerCase()}_id`;
-          const childEntity = get().nodes.find(n => n.id === childId);
-          const existingFk = childEntity?.data.attributes?.find(attr =>
-            attr.isForeignKey && attr.referencedEntity === parentEntity.data.label
-          );
-          
-          if (!existingFk) {
-            get().addForeignKeyToEntity(childId, {
-              name: fkName,
-              referencedEntity: parentEntity.data.label
-            });
-          }
-
-          // Remove FK from the other side if it was previously Many
-          if (prevRelType === '1:N') {
-            const otherEntity = get().nodes.find(n => n.id === parentId);
-            const childEntityData = get().nodes.find(n => n.id === childId);
-            if (otherEntity && childEntityData) {
-              get().removeForeignKeyFromEntity(parentId, childEntityData.data.label);
-            }
-          }
-        }
-      } else if (relType === '1:1' && prevRelType === '1:N') {
-        // Changed from 1:N to 1:1 - remove FKs from both sides
-        const entityA = get().nodes.find(n => n.id === entityAId);
-        const entityB = get().nodes.find(n => n.id === entityBId);
-        
-        if (entityA && entityB) {
-          get().removeForeignKeyFromEntity(entityAId, entityB.data.label);
-          get().removeForeignKeyFromEntity(entityBId, entityA.data.label);
-        }
-      } else if (relType === 'M:N') {
-        // Remove any existing FKs and show warning about junction table
-        const entityA = get().nodes.find(n => n.id === entityAId);
-        const entityB = get().nodes.find(n => n.id === entityBId);
-        
-        if (entityA && entityB) {
-          get().removeForeignKeyFromEntity(entityAId, entityB.data.label);
-          get().removeForeignKeyFromEntity(entityBId, entityA.data.label);
-        }
-
-        const suggestion = get().detectAndSuggestJunctionTable(entityAId, entityBId);
-        if (suggestion) {
-          console.warn(suggestion.message);
-        }
-      }
-    }
-
-    // Generate edges with smart handle positioning
-    const newEdges = [];
-    let edgeIndex = 0;
-
-    entityConnectionMap.forEach((conns, entityId) => {
-      if (conns.length === 1) {
-        // Standard connection
-        const conn = conns[0];
-        newEdges.push({
-          id: `edge-${entityId}-${relationshipId}-${Date.now()}-${edgeIndex++}`,
-          source: entityId,
-          sourceHandle: 'handle-relations-right',
-          target: relationshipId,
-          type: 'erdEdge',
-          animated: false,
-          data: {
-            edgeType: 'relationship',
-            sourceCardinality: mapCardinality(conn.cardinality),
-            targetCardinality: 'ONE',
-            role: conn.role || null,
-            isIdentifying: conn.isIdentifying || false
-          }
-        });
-      } else if (conns.length > 1) {
-        // Recursive relationship - use different handles for each role
-        const handles = ['handle-relations-right', 'handle-relations-top', 'handle-relations-left'];
-        conns.forEach((conn, idx) => {
-          newEdges.push({
-            id: `edge-${entityId}-${relationshipId}-${Date.now()}-${edgeIndex++}`,
-            source: entityId,
-            sourceHandle: handles[idx % handles.length],
-            target: relationshipId,
-            type: 'erdEdge',
-            animated: false,
-            data: {
-              edgeType: 'relationship',
-              sourceCardinality: mapCardinality(conn.cardinality),
-              targetCardinality: 'ONE',
-              role: conn.role || `Role ${idx + 1}`,
-              isIdentifying: conn.isIdentifying || false,
-              isRecursive: true
-            }
-          });
-        });
-      }
-    });
-
+  addAttributeToRelationship: (relationshipId, attributeData) => {
+    const relNode = get().nodes.find(n => n.id === relationshipId);
+    if (!relNode) return;
+    const attributeId = `attr-rel-${Date.now()}`;
+    const existingAttributes = relNode.data.attributes || [];
+    const offsetX = (existingAttributes.length % 2 === 0 ? 1 : -1) * 120;
+    const offsetY = (Math.floor(existingAttributes.length / 2) + 1) * 120;
+    const newAttributeNode = { id: attributeId, type: 'attributeNode', position: { x: relNode.position.x + offsetX, y: relNode.position.y + offsetY }, data: { label: attributeData.name || 'Rel_Attribute', isKey: false, parentId: relationshipId } };
+    const newEdge = { id: `edge-${relationshipId}-${attributeId}`, source: relationshipId, target: attributeId, type: 'erdEdge', data: { edgeType: 'attribute' } };
+    const updatedAttributes = [...existingAttributes, { id: attributeId, name: attributeData.name || 'Rel_Attribute' }];
     set({
-      nodes: get().nodes.map(node => 
-        node.id === relationshipId
-          ? { ...node, data: { ...node.data, connections, isIdentifying } }
-          : node
-      ),
-      edges: [...filteredEdges, ...newEdges],
+      nodes: [...get().nodes.map(n => n.id === relationshipId ? { ...n, data: { ...n.data, attributes: updatedAttributes } } : n), newAttributeNode],
+      edges: [...get().edges, newEdge],
       hasUnsavedChanges: true
     });
   },
 
-  // Get all entity nodes
-  getEntityNodes: () => {
-    return get().nodes.filter(node => node.type === 'entityNode');
+  updateRelationshipAttribute: (relationshipId, attributeId, attributeData) => {
+    const rel = get().nodes.find(n => n.id === relationshipId);
+    if (!rel) return;
+    const updatedAttributes = rel.data.attributes.map(attr => attr.id === attributeId ? { ...attr, ...attributeData } : attr);
+    const nodes = get().nodes.map(node => {
+      if (node.id === relationshipId) return { ...node, data: { ...node.data, attributes: updatedAttributes } };
+      if (node.id === attributeId && attributeData.name) return { ...node, data: { ...node.data, label: attributeData.name } };
+      return node;
+    });
+    set({ nodes: nodes, hasUnsavedChanges: true });
   },
 
-  // Update edge data (useful for cardinality changes)
-  updateEdgeData: (edgeId, newData) => {
+  removeRelationshipAttribute: (relationshipId, attributeId) => {
+    const relNode = get().nodes.find(n => n.id === relationshipId);
+    if (!relNode) return;
     set({
-      edges: get().edges.map(edge =>
-        edge.id === edgeId
-          ? { ...edge, data: { ...edge.data, ...newData } }
-          : edge
-      ),
+      nodes: get().nodes.filter(n => n.id !== attributeId).map(n => n.id === relationshipId ? { ...n, data: { ...n.data, attributes: n.data.attributes.filter(a => a.id !== attributeId) } } : n),
+      edges: get().edges.filter(e => e.source !== attributeId && e.target !== attributeId),
       hasUnsavedChanges: true
     });
   },
 
-  // Add Foreign Key to Entity (for 1:N relationships)
-  addForeignKeyToEntity: (entityId, fkData) => {
-    const entity = get().nodes.find(n => n.id === entityId);
-    if (!entity || entity.type !== 'entityNode') return;
-
-    const existingAttributes = entity.data.attributes || [];
-    const fkAttribute = {
-      id: `fk-${Date.now()}`,
-      name: fkData.name,
-      isKey: false,
-      isForeignKey: true,
-      referencedEntity: fkData.referencedEntity
-    };
-
-    set({
-      nodes: get().nodes.map(node =>
-        node.id === entityId
-          ? { ...node, data: { ...node.data, attributes: [...existingAttributes, fkAttribute] } }
-          : node
-      ),
-      hasUnsavedChanges: true
-    });
-  },
-
-  // Remove Foreign Key from Entity
-  removeForeignKeyFromEntity: (entityId, referencedEntityName) => {
-    const entity = get().nodes.find(n => n.id === entityId);
-    if (!entity || entity.type !== 'entityNode') return;
-
-    const updatedAttributes = (entity.data.attributes || []).filter(attr => 
-      !(attr.isForeignKey && attr.referencedEntity === referencedEntityName)
-    );
-
-    set({
-      nodes: get().nodes.map(node =>
-        node.id === entityId
-          ? { ...node, data: { ...node.data, attributes: updatedAttributes } }
-          : node
-      ),
-      hasUnsavedChanges: true
-    });
-  },
-
-  // Detect Many-to-Many and suggest Junction Table
-  detectAndSuggestJunctionTable: (entityAId, entityBId) => {
-    const entityA = get().nodes.find(n => n.id === entityAId);
-    const entityB = get().nodes.find(n => n.id === entityBId);
-    
-    if (!entityA || !entityB) return null;
-
-    // Check if there's already an M:N edge between these entities
-    const existingManyToMany = get().edges.find(edge => {
-      const isAtoB = edge.source === entityAId && edge.target === entityBId;
-      const isBtoA = edge.source === entityBId && edge.target === entityAId;
-      const isManyToMany = edge.data?.sourceCardinality === 'MANY' && edge.data?.targetCardinality === 'MANY';
-      return (isAtoB || isBtoA) && isManyToMany;
-    });
-
-    if (existingManyToMany) {
-      // Return junction table suggestion
-      const junctionTableName = `${entityA.data.label}_${entityB.data.label}`;
-      return {
-        suggestedName: junctionTableName,
-        attributes: [
-          { name: `${entityA.data.label.toLowerCase()}_id`, isKey: true, isForeignKey: true, referencedEntity: entityA.data.label },
-          { name: `${entityB.data.label.toLowerCase()}_id`, isKey: true, isForeignKey: true, referencedEntity: entityB.data.label }
-        ],
-        message: `Many-to-Many relationship detected! Create a junction table "${junctionTableName}" with composite primary key.`
-      };
-    }
-
-    return null;
+  getEntityNodes: () => { return get().nodes.filter(node => node.type === 'entityNode'); },
+  updateEdgeCardinality: (edgeId, cardinalityValue) => {
+    const mapCardinality = (value) => { switch (value) { case '1': return 'ONE'; case 'N': case 'M': return 'MANY'; default: return 'ONE'; } };
+    set({ edges: get().edges.map(e => { if (e.id === edgeId) { return { ...e, label: cardinalityValue, data: { ...e.data, sourceCardinality: mapCardinality(cardinalityValue) } }; } return e; }), hasUnsavedChanges: true });
   }
 }));
 

@@ -7,7 +7,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import useFlowStore from '../store/useFlowStore';
-import { EntityNode, AttributeNode, RelationshipNode } from './Flow/ConceptualNodes';
+import { EntityNode, AttributeNode, RelationshipNode, IsANode } from './Flow/ConceptualNodes';
 import ErdEdge from './Flow/ErdEdge';
 
 const EditorCanvas = () => {
@@ -25,7 +25,8 @@ const EditorCanvas = () => {
   const nodeTypes = useMemo(() => ({ 
     entityNode: EntityNode,
     attributeNode: AttributeNode,
-    relationshipNode: RelationshipNode
+    relationshipNode: RelationshipNode,
+    isaNode: IsANode
   }), []);
 
   // Register custom edge types

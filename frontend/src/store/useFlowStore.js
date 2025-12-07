@@ -56,12 +56,16 @@ const useFlowStore = create((set, get) => ({
   },
 
   onConnect: (connection) => {
+    // Determine edge type based on source handle
+    const isAttributeEdge = connection.sourceHandle === 'handle-attributes';
+    
     const newEdge = {
       ...connection,
       type: 'erdEdge',
       data: { 
+        edgeType: isAttributeEdge ? 'attribute' : 'relationship',
         sourceCardinality: 'ONE', 
-        targetCardinality: 'MANY' 
+        targetCardinality: isAttributeEdge ? 'ONE' : 'MANY'
       }
     };
     set({
@@ -109,6 +113,17 @@ const useFlowStore = create((set, get) => ({
             label: 'New_Relationship',
             connections: [],
             attributes: []
+          }
+        };
+        break;
+      case 'isaNode':
+        newNode = {
+          ...baseNode,
+          type: 'isaNode',
+          data: { 
+            label: 'ISA',
+            isDisjoint: false,
+            isTotal: false
           }
         };
         break;
@@ -192,14 +207,16 @@ const useFlowStore = create((set, get) => ({
       }
     };
 
-    // Create edge connecting entity to attribute
+    // Create edge connecting entity to attribute (simple line, no markers)
     const newEdge = {
       id: `edge-${entityId}-${attributeId}`,
       source: entityId,
+      sourceHandle: 'handle-attributes',
       target: attributeId,
       type: 'erdEdge',
       animated: false,
       data: {
+        edgeType: 'attribute', // Mark as attribute edge for simple styling
         sourceCardinality: 'ONE',
         targetCardinality: 'ONE'
       }
@@ -286,30 +303,85 @@ const useFlowStore = create((set, get) => ({
     const relationship = get().nodes.find(n => n.id === relationshipId);
     if (!relationship) return;
 
+    // Map cardinality values from UI to marker format
+    const mapCardinality = (value) => {
+      switch(value) {
+        case '1': return 'ONE';
+        case 'N': case 'M': return 'MANY';
+        case '0..1': return 'ZERO_ONE';
+        case '1..N': return 'ZERO_MANY';
+        default: return 'ONE';
+      }
+    };
+
+    // Determine if this is an identifying relationship
+    const isIdentifying = connections.some(conn => conn.isIdentifying);
+
     // Remove old edges connected to this relationship
     const filteredEdges = get().edges.filter(edge => 
       edge.source !== relationshipId && edge.target !== relationshipId
     );
 
-    // Create new edges based on connections
-    const newEdges = connections
-      .filter(conn => conn.entityId)
-      .map(conn => ({
-        id: `edge-${relationshipId}-${conn.entityId}-${Date.now()}`,
-        source: conn.entityId,
-        target: relationshipId,
-        type: 'erdEdge',
-        animated: false,
-        data: {
-          sourceCardinality: conn.cardinality || 'ONE',
-          targetCardinality: 'ONE'
-        }
-      }));
+    // Group connections by entityId to detect recursive relationships
+    const entityConnectionMap = new Map();
+    connections.filter(conn => conn.entityId).forEach(conn => {
+      if (!entityConnectionMap.has(conn.entityId)) {
+        entityConnectionMap.set(conn.entityId, []);
+      }
+      entityConnectionMap.get(conn.entityId).push(conn);
+    });
+
+    // Generate edges with smart handle positioning
+    const newEdges = [];
+    let edgeIndex = 0;
+
+    entityConnectionMap.forEach((conns, entityId) => {
+      if (conns.length === 1) {
+        // Standard connection
+        const conn = conns[0];
+        newEdges.push({
+          id: `edge-${entityId}-${relationshipId}-${Date.now()}-${edgeIndex++}`,
+          source: entityId,
+          sourceHandle: 'handle-relations-right',
+          target: relationshipId,
+          type: 'erdEdge',
+          animated: false,
+          data: {
+            edgeType: 'relationship',
+            sourceCardinality: mapCardinality(conn.cardinality),
+            targetCardinality: 'ONE',
+            role: conn.role || null,
+            isIdentifying: conn.isIdentifying || false
+          }
+        });
+      } else if (conns.length > 1) {
+        // Recursive relationship - use different handles for each role
+        const handles = ['handle-relations-right', 'handle-relations-top', 'handle-relations-left'];
+        conns.forEach((conn, idx) => {
+          newEdges.push({
+            id: `edge-${entityId}-${relationshipId}-${Date.now()}-${edgeIndex++}`,
+            source: entityId,
+            sourceHandle: handles[idx % handles.length],
+            target: relationshipId,
+            type: 'erdEdge',
+            animated: false,
+            data: {
+              edgeType: 'relationship',
+              sourceCardinality: mapCardinality(conn.cardinality),
+              targetCardinality: 'ONE',
+              role: conn.role || `Role ${idx + 1}`,
+              isIdentifying: conn.isIdentifying || false,
+              isRecursive: true
+            }
+          });
+        });
+      }
+    });
 
     set({
       nodes: get().nodes.map(node => 
         node.id === relationshipId
-          ? { ...node, data: { ...node.data, connections } }
+          ? { ...node, data: { ...node.data, connections, isIdentifying } }
           : node
       ),
       edges: [...filteredEdges, ...newEdges],
@@ -320,6 +392,18 @@ const useFlowStore = create((set, get) => ({
   // Get all entity nodes
   getEntityNodes: () => {
     return get().nodes.filter(node => node.type === 'entityNode');
+  },
+
+  // Update edge data (useful for cardinality changes)
+  updateEdgeData: (edgeId, newData) => {
+    set({
+      edges: get().edges.map(edge =>
+        edge.id === edgeId
+          ? { ...edge, data: { ...edge.data, ...newData } }
+          : edge
+      ),
+      hasUnsavedChanges: true
+    });
   }
 }));
 

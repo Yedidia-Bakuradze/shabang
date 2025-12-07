@@ -56,8 +56,16 @@ const useFlowStore = create((set, get) => ({
   },
 
   onConnect: (connection) => {
+    const newEdge = {
+      ...connection,
+      type: 'erdEdge',
+      data: { 
+        sourceCardinality: 'ONE', 
+        targetCardinality: 'MANY' 
+      }
+    };
     set({
-      edges: addEdge(connection, get().edges),
+      edges: addEdge(newEdge, get().edges),
       hasUnsavedChanges: true
     });
   },
@@ -189,8 +197,12 @@ const useFlowStore = create((set, get) => ({
       id: `edge-${entityId}-${attributeId}`,
       source: entityId,
       target: attributeId,
-      type: 'smoothstep',
-      animated: false
+      type: 'erdEdge',
+      animated: false,
+      data: {
+        sourceCardinality: 'ONE',
+        targetCardinality: 'ONE'
+      }
     };
 
     // Update entity's attribute list
@@ -286,11 +298,11 @@ const useFlowStore = create((set, get) => ({
         id: `edge-${relationshipId}-${conn.entityId}-${Date.now()}`,
         source: conn.entityId,
         target: relationshipId,
-        type: 'smoothstep',
+        type: 'erdEdge',
         animated: false,
         data: {
-          sourceCardinality: conn.cardinality || '1',
-          targetCardinality: '1'
+          sourceCardinality: conn.cardinality || 'ONE',
+          targetCardinality: 'ONE'
         }
       }));
 

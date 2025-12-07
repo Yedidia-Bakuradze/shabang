@@ -35,9 +35,10 @@ const EditorCanvas = () => {
 
   // Default edge options
   const defaultEdgeOptions = {
-    type: 'smoothstep',
+    type: 'erdEdge',
     animated: false,
-    style: { strokeWidth: 2 }
+    style: { strokeWidth: 2 },
+    data: { sourceCardinality: 'ONE', targetCardinality: 'MANY' }
   };
 
   // Handle node click
@@ -76,6 +77,39 @@ const EditorCanvas = () => {
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
       >
+        {/* SVG Marker Definitions for Crow's Foot Notation */}
+        <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, pointerEvents: 'none' }}>
+          <defs>
+            {/* Gradient for the animation particles */}
+            <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="#8b5cf6" />
+            </linearGradient>
+
+            {/* Marker: One (Vertical Line) */}
+            <marker id="marker-one" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+              <path d="M6,2 L6,10 M10,2 L10,10 M2,6 L10,6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </marker>
+
+            {/* Marker: Many (Crow's Foot) */}
+            <marker id="marker-many" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+              <path d="M2,2 L10,6 L2,10 M10,6 L2,6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </marker>
+
+            {/* Marker: Zero or One */}
+            <marker id="marker-zero-one" markerWidth="14" markerHeight="12" refX="12" refY="6" orient="auto">
+              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.5" fill="#fff" />
+              <path d="M12,2 L12,10" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </marker>
+
+            {/* Marker: Zero or Many */}
+            <marker id="marker-zero-many" markerWidth="14" markerHeight="12" refX="12" refY="6" orient="auto">
+              <circle cx="4" cy="6" r="4" stroke="currentColor" strokeWidth="1.5" fill="#fff" />
+              <path d="M6,2 L14,6 L6,10" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </marker>
+          </defs>
+        </svg>
+
         <Background />
         <Controls />
         <MiniMap />

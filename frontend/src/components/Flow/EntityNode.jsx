@@ -1,29 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import useFlowStore from '../../store/useFlowStore';
 
 const EntityNode = ({ id, data }) => {
-  const { updateNodeData } = useFlowStore();
-  const [isEditing, setIsEditing] = useState(false);
-  const [tableName, setTableName] = useState(data.label || 'New_Table');
+  const { updateNodeLabel } = useFlowStore();
 
-  const handleNameChange = (e) => {
-    setTableName(e.target.value);
-  };
-
-  const handleNameBlur = () => {
-    setIsEditing(false);
-    if (tableName.trim()) {
-      updateNodeData(id, { label: tableName.trim() });
-    } else {
-      setTableName(data.label || 'New_Table');
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.target.blur();
-    }
+  const handleLabelChange = (e) => {
+    updateNodeLabel(id, e.target.value);
   };
 
   return (
@@ -37,24 +20,13 @@ const EntityNode = ({ id, data }) => {
       
       {/* Header - Table Name */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-md px-4 py-3">
-        {isEditing ? (
-          <input
-            type="text"
-            value={tableName}
-            onChange={handleNameChange}
-            onBlur={handleNameBlur}
-            onKeyDown={handleKeyDown}
-            autoFocus
-            className="w-full bg-blue-800 text-white font-semibold text-sm px-2 py-1 rounded border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-        ) : (
-          <h3
-            onClick={() => setIsEditing(true)}
-            className="text-white font-semibold text-sm cursor-pointer hover:bg-blue-800 px-2 py-1 rounded transition-colors"
-          >
-            {data.label || 'New_Table'}
-          </h3>
-        )}
+        <input
+          type="text"
+          value={data.label || 'New_Table'}
+          onChange={handleLabelChange}
+          className="nodrag w-full bg-transparent text-white font-semibold text-sm text-center outline-none focus:bg-blue-800 px-2 py-1 rounded transition-colors"
+          placeholder="Table Name"
+        />
       </div>
 
       {/* Body - Columns List */}

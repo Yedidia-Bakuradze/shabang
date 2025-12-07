@@ -73,19 +73,56 @@ const useFlowStore = create((set, get) => ({
     });
   },
 
-  addNode: () => {
-    const newNode = {
+  addNode: (nodeType = 'entityNode') => {
+    const baseNode = {
       id: `node-${Date.now()}`,
-      type: 'entityNode',
-      data: { 
-        label: 'New_Table',
-        columns: []
-      },
       position: {
         x: Math.random() * 400 + 100,
         y: Math.random() * 400 + 100
       }
     };
+
+    let newNode;
+    switch (nodeType) {
+      case 'entityNode':
+        newNode = {
+          ...baseNode,
+          type: 'entityNode',
+          data: { 
+            label: 'New_Entity',
+            columns: []
+          }
+        };
+        break;
+      case 'attributeNode':
+        newNode = {
+          ...baseNode,
+          type: 'attributeNode',
+          data: { 
+            label: 'New_Attribute'
+          }
+        };
+        break;
+      case 'relationshipNode':
+        newNode = {
+          ...baseNode,
+          type: 'relationshipNode',
+          data: { 
+            label: 'New_Relationship'
+          }
+        };
+        break;
+      default:
+        newNode = {
+          ...baseNode,
+          type: 'entityNode',
+          data: { 
+            label: 'New_Table',
+            columns: []
+          }
+        };
+    }
+
     set({
       nodes: [...get().nodes, newNode],
       hasUnsavedChanges: true
@@ -101,6 +138,24 @@ const useFlowStore = create((set, get) => ({
             data: {
               ...node.data,
               ...newData
+            }
+          };
+        }
+        return node;
+      }),
+      hasUnsavedChanges: true
+    });
+  },
+
+  updateNodeLabel: (nodeId, newLabel) => {
+    set({
+      nodes: get().nodes.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              label: newLabel
             }
           };
         }

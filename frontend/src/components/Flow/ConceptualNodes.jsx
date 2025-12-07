@@ -14,31 +14,10 @@ export const EntityNode = ({ id, data, selected }) => {
   const attributes = data.attributes || [];
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl min-w-[200px] overflow-hidden ${
-      isWeak ? 'border-double border-4' : 'border-2'
-    } ${
-      selected ? 'border-blue-500' : 'border-gray-400 dark:border-gray-600'
-    }`}>
-      {/* Relationship Handles */}
-      <Handle 
-        type="target" 
-        position={Position.Left}
-        id="handle-relations-left"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right}
-        id="handle-relations-right"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
-      />
-      <Handle 
-        type="target" 
-        position={Position.Top}
-        id="handle-relations-top"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
-      />
-      
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl min-w-[200px] overflow-hidden ${isWeak ? 'border-double border-4' : 'border-2'
+      } ${selected ? 'border-blue-500' : 'border-gray-400 dark:border-gray-600'
+      }`}>
+
       {/* Header: Entity Name */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2">
         <input
@@ -65,11 +44,10 @@ export const EntityNode = ({ id, data, selected }) => {
           attributes.map((attr) => (
             <div
               key={attr.id}
-              className={`flex items-center gap-2 text-sm px-2 py-1 rounded ${
-                attr.isKey ? 'font-bold text-yellow-600 dark:text-yellow-400' : 
-                attr.isForeignKey ? 'italic text-gray-600 dark:text-gray-400' : 
-                'text-gray-800 dark:text-gray-200'
-              }`}
+              className={`flex items-center gap-2 text-sm px-2 py-1 rounded ${attr.isKey ? 'font-bold text-yellow-600 dark:text-yellow-400' :
+                attr.isForeignKey ? 'italic text-gray-600 dark:text-gray-400' :
+                  'text-gray-800 dark:text-gray-200'
+                }`}
             >
               {/* Icon for PK or FK */}
               {attr.isKey && (
@@ -93,9 +71,35 @@ export const EntityNode = ({ id, data, selected }) => {
         )}
       </div>
 
-      {/* Attribute Handle - Bottom */}
-      <Handle 
-        type="source" 
+      {/* --- HANDLES (Rendered last to ensure they are on top) --- */}
+
+      {/* Left */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="handle-relations-left"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
+      />
+
+      {/* Right */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="handle-relations-right"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
+      />
+
+      {/* Top */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="handle-relations-top"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
+      />
+
+      {/* Bottom (used for attributes primarily, but acts as a standard bottom handle) */}
+      <Handle
+        type="source"
         position={Position.Bottom}
         id="handle-attributes"
         className="!bg-green-400 !w-3 !h-3 !border-2 !border-green-700"
@@ -114,29 +118,38 @@ export const AttributeNode = ({ id, data, selected }) => {
 
   return (
     <div className="relative">
-      <Handle 
-        type="target" 
-        position={Position.Top}
-        className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
-      />
-      
-      <div className={`bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-lg border-2 ${
-        selected ? 'border-purple-300' : 'border-purple-700'
-      } px-6 py-3 min-w-[120px] flex items-center justify-center`}>
+
+      <div className={`bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-lg border-2 ${selected ? 'border-purple-300' : 'border-purple-700'
+        } px-6 py-3 min-w-[120px] flex items-center justify-center`}>
         <input
           type="text"
           value={data.label || 'Attribute'}
           onChange={handleLabelChange}
-          className={`nodrag w-full bg-transparent text-white font-medium text-sm text-center outline-none focus:bg-purple-700 focus:bg-opacity-30 px-2 py-1 rounded transition-colors ${
-            data.isKey ? 'underline decoration-2 underline-offset-2' : ''
-          }`}
+          className={`nodrag w-full bg-transparent text-white font-medium text-sm text-center outline-none focus:bg-purple-700 focus:bg-opacity-30 px-2 py-1 rounded transition-colors ${data.isKey ? 'underline decoration-2 underline-offset-2' : ''
+            }`}
           placeholder="Attribute"
         />
       </div>
 
-      <Handle 
-        type="source" 
+      {/* --- HANDLES --- */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
+      />
+      <Handle
+        type="source"
         position={Position.Bottom}
+        className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
         className="!bg-purple-300 !w-3 !h-3 !border-2 !border-purple-700"
       />
     </div>
@@ -155,27 +168,21 @@ export const RelationshipNode = ({ id, data, selected }) => {
 
   return (
     <div className="relative" style={{ width: '140px', height: '140px' }}>
-      <Handle 
-        type="target" 
-        position={Position.Left}
-        className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
-      />
-      
-      {/* Diamond Shape */}
-      <div 
-        className={`absolute inset-0 bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg ${
-          isIdentifying ? 'border-double border-4' : 'border-2'
-        } ${
-          selected ? 'border-orange-300' : 'border-orange-700'
-        } flex items-center justify-center`}
-        style={{ 
+
+      {/* Diamond Shape Background */}
+      <div
+        className={`absolute inset-0 bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg ${isIdentifying ? 'border-double border-4' : 'border-2'
+          } ${selected ? 'border-orange-300' : 'border-orange-700'
+          } flex items-center justify-center`}
+        style={{
           transform: 'rotate(45deg)',
-          transformOrigin: 'center'
+          transformOrigin: 'center',
+          zIndex: 0 // Ensure background is behind handles
         }}
       >
         {/* Text container with reverse rotation */}
-        <div 
-          style={{ 
+        <div
+          style={{
             transform: 'rotate(-45deg)',
             width: '100%',
             height: '100%',
@@ -195,20 +202,34 @@ export const RelationshipNode = ({ id, data, selected }) => {
         </div>
       </div>
 
-      <Handle 
-        type="source" 
+      {/* --- HANDLES (Placed after the diamond div to ensure visibility) --- */}
+
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
+        style={{ zIndex: 10 }}
+      />
+
+      <Handle
+        type="source"
         position={Position.Right}
         className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
+        style={{ zIndex: 10 }}
       />
-      <Handle 
-        type="target" 
+
+      <Handle
+        type="target"
         position={Position.Top}
         className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
+        style={{ zIndex: 10 }}
       />
-      <Handle 
-        type="source" 
+
+      <Handle
+        type="source"
         position={Position.Bottom}
         className="!bg-orange-300 !w-3 !h-3 !border-2 !border-orange-700"
+        style={{ zIndex: 10 }}
       />
     </div>
   );
@@ -224,20 +245,14 @@ export const IsANode = ({ id, data, selected }) => {
 
   return (
     <div className="relative" style={{ width: '120px', height: '120px' }}>
-      {/* Handles for connecting superclass (top) and subclasses (bottom sides) */}
-      <Handle 
-        type="target" 
-        position={Position.Top}
-        className="!bg-green-300 !w-3 !h-3 !border-2 !border-green-700"
-      />
-      
+
       {/* Triangle Shape using clip-path */}
-      <div 
-        className={`absolute inset-0 bg-gradient-to-br from-green-400 to-green-600 shadow-lg border-2 ${
-          selected ? 'border-green-300' : 'border-green-700'
-        } flex items-center justify-center`}
+      <div
+        className={`absolute inset-0 bg-gradient-to-br from-green-400 to-green-600 shadow-lg border-2 ${selected ? 'border-green-300' : 'border-green-700'
+          } flex items-center justify-center`}
         style={{
           clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+          zIndex: 0
         }}
       >
         <div className="mt-8">
@@ -251,20 +266,45 @@ export const IsANode = ({ id, data, selected }) => {
         </div>
       </div>
 
-      {/* Bottom handles for subclasses */}
-      <Handle 
-        type="source" 
+      {/* --- HANDLES --- */}
+
+      {/* Top (Superclass connection) */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-green-300 !w-3 !h-3 !border-2 !border-green-700"
+        style={{ zIndex: 10 }}
+      />
+
+      {/* Subclass Left */}
+      <Handle
+        type="source"
         position={Position.Bottom}
         id="subclass-left"
         className="!bg-green-300 !w-3 !h-3 !border-2 !border-green-700"
-        style={{ left: '30%' }}
+        style={{ left: '30%', zIndex: 10 }}
       />
-      <Handle 
-        type="source" 
+
+      {/* Subclass Right */}
+      <Handle
+        type="source"
         position={Position.Bottom}
         id="subclass-right"
         className="!bg-green-300 !w-3 !h-3 !border-2 !border-green-700"
-        style={{ left: '70%' }}
+        style={{ left: '70%', zIndex: 10 }}
+      />
+
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!bg-green-300 !w-3 !h-3 !border-2 !border-green-700"
+        style={{ zIndex: 10 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-green-300 !w-3 !h-3 !border-2 !border-green-700"
+        style={{ zIndex: 10 }}
       />
     </div>
   );

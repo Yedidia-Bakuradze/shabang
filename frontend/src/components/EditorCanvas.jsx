@@ -9,8 +9,9 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import useFlowStore from '../store/useFlowStore';
-import { EntityNode, AttributeNode, RelationshipNode, IsANode } from './Flow/ConceptualNodes';
+import { useTheme } from '../context/ThemeContext';
 
+import { EntityNode, AttributeNode, RelationshipNode, IsANode } from './Flow/ConceptualNodes';
 import ErdEdge from './Flow/ErdEdge';
 import ErdMarkers from './Flow/ErdMarkers';
 
@@ -24,6 +25,8 @@ const EditorCanvas = () => {
     addNode,
     setSelectedNodeId
   } = useFlowStore();
+
+  const { darkMode } = useTheme();
 
   // Register custom node types
   const nodeTypes = useMemo(() => ({
@@ -66,7 +69,7 @@ const EditorCanvas = () => {
   }, [setSelectedNodeId]);
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -81,13 +84,49 @@ const EditorCanvas = () => {
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
+        colorMode={darkMode ? 'dark' : 'light'}
       >
-        {/* DARK-MODE AWARE MARKERS (ONLY FROM THIS COMPONENT) */}
+        {/* DARK-MODE AWARE MARKERS */}
         <ErdMarkers />
 
-        <Background />
-        <Controls />
+        {/* BACKGROUND */}
+        <Background
+          color={darkMode ? '#4b5563' : '#9ca3af'}
+          gap={16}
+        />
+
+        {/* CONTROLS */}
+        <Controls
+          className="
+            /* MAIN BOX STYLING */
+            !bg-white dark:!bg-gray-900 
+            !border-gray-200 dark:!border-gray-700 
+            !shadow-lg !m-4
+
+            /* BUTTON STYLING */
+            [&>button]:!bg-transparent
+            [&>button]:!border-b 
+            [&>button]:!border-gray-100 dark:[&>button]:!border-gray-800
+            
+            /* ICON COLORS (Blueish) */
+            [&>button]:!fill-blue-600 dark:[&>button]:!fill-blue-500
+            
+            /* HOVER STATES */
+            [&>button:hover]:!bg-gray-50 
+            dark:[&>button:hover]:!bg-gray-800
+            
+            /* Last button border fix */
+            [&>button:last-child]:!border-b-0
+          "
+        />
+
+        {/* MINIMAP */}
         <MiniMap
+          style={{
+            backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+            border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+          }}
+          maskColor={darkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(240, 242, 245, 0.6)'}
           nodeColor={(n) =>
             n.type === 'entityNode'
               ? '#3b82f6'
@@ -97,12 +136,11 @@ const EditorCanvas = () => {
                   ? '#f97316'
                   : '#6b7280'
           }
-          maskColor="rgba(0,0,0,0.1)"
         />
 
         {/* Right-Side Add Node Panel */}
         <Panel position="top-right" className="space-x-2">
-          <div className="flex flex-col gap-2 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col gap-2 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 transition-colors duration-200">
             <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Add Node</div>
 
             {/* Entity */}

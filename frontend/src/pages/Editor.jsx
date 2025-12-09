@@ -22,10 +22,8 @@ const Editor = () => {
                 setProjectName(response.data.name);
                 setProjectId(projectId);
                 
-                // Load canvas data if exists
-                if (response.data.entities) {
-                    loadProjectData(response.data.entities);
-                }
+                // Always load canvas data (will clear if empty)
+                loadProjectData(response.data.entities);
             } catch (error) {
                 console.error('Failed to load project:', error);
                 toast.error('Failed to load project');

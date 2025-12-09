@@ -29,10 +29,18 @@ const useFlowStore = create((set, get) => ({
   },
 
   loadProjectData: (entities) => {
+    // Always reset the canvas first, then load data if it exists
     if (entities && entities.nodes && entities.edges) {
       set({
         nodes: entities.nodes,
         edges: entities.edges,
+        hasUnsavedChanges: false
+      });
+    } else {
+      // Empty/new project - clear the canvas
+      set({
+        nodes: [],
+        edges: [],
         hasUnsavedChanges: false
       });
     }

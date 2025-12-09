@@ -228,12 +228,22 @@ const useFlowStore = create((set, get) => ({
       let label = null;
       let newNodes = [...nodes];
       let newEdges = [...edges];
+      let finalSourceHandle = sourceHandle;
+      let finalTargetHandle = targetHandle;
 
       // Entity <-> Attribute
       if ((sourceNode.type === 'entityNode' && targetNode.type === 'attributeNode') || (sourceNode.type === 'attributeNode' && targetNode.type === 'entityNode')) {
         edgeData = { edgeType: 'attribute' };
         const entityNode = sourceNode.type === 'entityNode' ? sourceNode : targetNode;
         const attributeNode = sourceNode.type === 'attributeNode' ? sourceNode : targetNode;
+        
+        // === FORCE BOTTOM HANDLE FOR ATTRIBUTES ===
+        // Override the connection handles to always use the bottom handle for entity-attribute connections
+        if (sourceNode.type === 'entityNode') {
+          finalSourceHandle = 'handle-attributes';
+        } else {
+          finalTargetHandle = 'handle-attributes';
+        }
         
         // === SINGLE-PARENT RULE ===
         // If attribute is already connected to another entity, disconnect it first
@@ -315,7 +325,7 @@ const useFlowStore = create((set, get) => ({
         }
       }
 
-      set({ nodes: newNodes, edges: addEdge({ ...connection, type: 'erdEdge', label: label, data: edgeData }, newEdges), hasUnsavedChanges: true });
+      set({ nodes: newNodes, edges: addEdge({ ...connection, sourceHandle: finalSourceHandle, targetHandle: finalTargetHandle, type: 'erdEdge', label: label, data: edgeData }, newEdges), hasUnsavedChanges: true });
     }
   },
 

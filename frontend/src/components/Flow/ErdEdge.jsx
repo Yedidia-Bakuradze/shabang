@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   BaseEdge,
-  getBezierPath,
+  getSmoothStepPath,
   getStraightPath,
   EdgeLabelRenderer
 } from 'reactflow';
@@ -22,9 +22,16 @@ const ErdEdge = ({
 
   const isAttributeEdge = data?.edgeType === 'attribute';
 
+  // Use smoothstep for relationship edges (avoids node overlap)
+  // Use straight path for attribute edges
   const [edgePath, labelX, labelY] = isAttributeEdge
     ? getStraightPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
-    : getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+    : getSmoothStepPath({ 
+        sourceX, sourceY, sourcePosition, 
+        targetX, targetY, targetPosition,
+        borderRadius: 8,
+        offset: 20 // Adds offset to avoid overlapping nodes
+      });
 
   /*-------------------------------------------------------------------------
       ATTRIBUTE EDGE (Dashed)
@@ -68,14 +75,14 @@ const ErdEdge = ({
         style={style}
       />
 
-      {/* CARDINALITY LABEL (1, N, etc) - Rendered as a badge */}
+      {/* CARDINALITY LABEL (1, N, etc) - Rendered as a badge with offset */}
       {label && (
         <EdgeLabelRenderer>
           <div
             className={`
                 nodrag nopan
-                px-2 py-0.5 text-xs font-bold
-                rounded-full shadow-sm
+                px-1.5 py-0.5 text-[10px] font-bold
+                rounded shadow-sm
                 border transition-transform
                 ${selected
                 ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-100 dark:border-blue-700'
@@ -84,9 +91,11 @@ const ErdEdge = ({
             `}
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              // Calculate offset: move label 30% along the edge away from center
+              // This prevents labels from sitting directly on node headers
+              transform: `translate(-50%, -50%) translate(${labelX + (sourceX < targetX ? -25 : 25)}px, ${labelY + (sourceY < targetY ? -15 : 15)}px)`,
               pointerEvents: 'all',
-              zIndex: 10
+              zIndex: 1000 // High z-index to ensure labels are always visible
             }}
           >
             {label}

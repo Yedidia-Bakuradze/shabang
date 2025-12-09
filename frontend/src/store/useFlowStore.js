@@ -246,8 +246,11 @@ const useFlowStore = create((set, get) => ({
           finalTargetHandle = 'handle-attributes';
         }
         
-        // === SINGLE-PARENT RULE ===
-        // If attribute is already connected to another entity, disconnect it first
+        // === SINGLE-PARENT RULE (STRICT ENFORCEMENT) ===
+        // An attribute can only belong to ONE entity at a time
+        // Check both data.attributes AND edges for existing connections
+        
+        // Method 1: Check data.attributes on all entities
         const existingParentEntity = newNodes.find(n => 
           n.type === 'entityNode' && 
           n.id !== entityNode.id &&
@@ -255,7 +258,7 @@ const useFlowStore = create((set, get) => ({
         );
         
         if (existingParentEntity) {
-          // Remove attribute from previous parent
+          // Remove attribute from previous parent's data
           newNodes = newNodes.map(n => {
             if (n.id === existingParentEntity.id) {
               return {
@@ -268,13 +271,42 @@ const useFlowStore = create((set, get) => ({
             }
             return n;
           });
-          
-          // Remove old edge between attribute and previous parent
-          newEdges = newEdges.filter(e => 
-            !((e.source === existingParentEntity.id && e.target === attributeNode.id) ||
-              (e.source === attributeNode.id && e.target === existingParentEntity.id))
-          );
         }
+        
+        // Method 2: Remove ALL existing edges connecting this attribute to ANY entity
+        // This ensures no visual multi-parenting even if data is inconsistent
+        newEdges = newEdges.filter(e => {
+          const isAttrEdge = e.data?.edgeType === 'attribute';
+          const involvesThisAttr = e.source === attributeNode.id || e.target === attributeNode.id;
+          const involvesOtherEntity = (e.source !== entityNode.id && e.target !== entityNode.id);
+          
+          // Keep edge if: not an attribute edge, or doesn't involve this attribute, 
+          // or it's connecting to the NEW entity (we want to keep/create that)
+          if (!isAttrEdge) return true;
+          if (!involvesThisAttr) return true;
+          if (!involvesOtherEntity) return true; // Keep if it's already connected to new entity
+          
+          // Remove: attribute edge to a DIFFERENT entity
+          const otherNodeId = e.source === attributeNode.id ? e.target : e.source;
+          const otherNode = newNodes.find(n => n.id === otherNodeId);
+          if (otherNode?.type === 'entityNode') {
+            // Also clean up that entity's data.attributes
+            newNodes = newNodes.map(n => {
+              if (n.id === otherNodeId && n.data.attributes) {
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    attributes: n.data.attributes.filter(attr => attr.id !== attributeNode.id)
+                  }
+                };
+              }
+              return n;
+            });
+            return false; // Remove this edge
+          }
+          return true;
+        });
         
         // Add attribute to new parent entity
         const currentAttributes = entityNode.data.attributes || [];

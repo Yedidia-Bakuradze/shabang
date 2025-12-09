@@ -71,6 +71,28 @@ const EditorCanvas = () => {
 
   return (
     <div className="w-full h-full bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      {/* 
+        CSS to ensure edges render BEHIND nodes:
+        - .react-flow__edges has lower z-index than nodes
+        - Edge labels maintain high z-index to stay visible
+      */}
+      <style>{`
+        .react-flow__edges {
+          z-index: 0 !important;
+        }
+        .react-flow__edge {
+          z-index: 0 !important;
+        }
+        .react-flow__nodes {
+          z-index: 1 !important;
+        }
+        .react-flow__node {
+          z-index: 2 !important;
+        }
+        .react-flow__node.selected {
+          z-index: 3 !important;
+        }
+      `}</style>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -86,6 +108,7 @@ const EditorCanvas = () => {
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
         colorMode={darkMode ? 'dark' : 'light'}
+        elevateEdgesOnSelect={false}
       >
         {/* DARK-MODE AWARE MARKERS */}
         <ErdMarkers />

@@ -11,6 +11,7 @@ const RelationshipPanel = ({ node }) => {
     connectEntityToRelationship,
     disconnectEntityFromRelationship,
     updateEdgeCardinality,
+    updateRelationshipType, // NEW: Import relationship type updater
   } = useFlowStore();
 
   const [selectedEntityId, setSelectedEntityId] = useState('');
@@ -144,6 +145,28 @@ const RelationshipPanel = ({ node }) => {
             Link
           </button>
         </div>
+      </div>
+
+      {/* --- RELATIONSHIP TYPE SELECTOR --- */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Relationship Type
+        </label>
+        <select
+          value={node.data.relationshipType || '1:N'}
+          onChange={(e) => updateRelationshipType(node.id, e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+        >
+          <option value="1:1">One-to-One (1:1)</option>
+          <option value="1:N">One-to-Many (1:N)</option>
+          <option value="N:1">Many-to-One (N:1)</option>
+          <option value="M:N">Many-to-Many (M:N)</option>
+        </select>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {node.data.relationshipType === 'M:N' 
+            ? 'M:N relationships use this node as a junction table. Add attributes here.'
+            : 'Foreign keys will be auto-injected based on type.'}
+        </p>
       </div>
 
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4"></div>

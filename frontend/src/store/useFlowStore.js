@@ -174,36 +174,117 @@ const useFlowStore = create((set, get) => ({
   },
 
   onConnect: (connection) => {
-    const { source, target } = connection;
+    const { source, target, sourceHandle, targetHandle } = connection;
     const nodes = get().nodes;
+    const edges = get().edges;
     const sourceNode = nodes.find(n => n.id === source);
     const targetNode = nodes.find(n => n.id === target);
 
     if (!sourceNode || !targetNode) return;
 
+    // === CONNECTION RULES ===
+    // 1. Attributes MUST connect via bottom handle of Entity
+    // 2. Relationships MUST connect via top/left/right handles
+    // 3. Attributes can only have ONE parent (single-parent rule)
+
     if (sourceNode.type === 'entityNode' && targetNode.type === 'entityNode') {
-      // Smart ERD Insert
+      // Smart ERD Insert - Create Relationship Diamond between entities
       const midX = (sourceNode.position.x + targetNode.position.x) / 2;
       const midY = (sourceNode.position.y + targetNode.position.y) / 2;
       const relationshipId = `rel-${Date.now()}`;
-      const relationshipNode = { id: relationshipId, type: 'relationshipNode', position: { x: midX, y: midY }, data: { label: 'Relationship', entityConnections: [source, target], attributes: [] } };
-      const edge1 = { id: `edge-${source}-${relationshipId}`, source: source, target: relationshipId, type: 'erdEdge', label: '1', data: { edgeType: 'relationship', sourceCardinality: 'ONE', targetCardinality: 'ONE' } };
-      const edge2 = { id: `edge-${relationshipId}-${target}`, source: relationshipId, target: target, type: 'erdEdge', label: 'N', data: { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE' } };
-      set({ nodes: [...nodes, relationshipNode], edges: [...get().edges, edge1, edge2], hasUnsavedChanges: true });
+      const relationshipNode = { 
+        id: relationshipId, 
+        type: 'relationshipNode', 
+        position: { x: midX, y: midY }, 
+        data: { 
+          label: 'Relationship', 
+          relationshipType: '1:N',
+          entityConnections: [source, target], 
+          attributes: [] 
+        } 
+      };
+      const edge1 = { 
+        id: `edge-${source}-${relationshipId}`, 
+        source: source, 
+        sourceHandle: 'handle-right',
+        target: relationshipId, 
+        type: 'erdEdge', 
+        label: '1', 
+        data: { edgeType: 'relationship', sourceCardinality: 'ONE', targetCardinality: 'ONE' } 
+      };
+      const edge2 = { 
+        id: `edge-${relationshipId}-${target}`, 
+        source: relationshipId, 
+        target: target,
+        targetHandle: 'handle-left', 
+        type: 'erdEdge', 
+        label: 'N', 
+        data: { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE' } 
+      };
+      set({ nodes: [...nodes, relationshipNode], edges: [...edges, edge1, edge2], hasUnsavedChanges: true });
     }
     else {
       let edgeData = {};
       let label = null;
       let newNodes = [...nodes];
+      let newEdges = [...edges];
 
       // Entity <-> Attribute
       if ((sourceNode.type === 'entityNode' && targetNode.type === 'attributeNode') || (sourceNode.type === 'attributeNode' && targetNode.type === 'entityNode')) {
         edgeData = { edgeType: 'attribute' };
         const entityNode = sourceNode.type === 'entityNode' ? sourceNode : targetNode;
         const attributeNode = sourceNode.type === 'attributeNode' ? sourceNode : targetNode;
+        
+        // === SINGLE-PARENT RULE ===
+        // If attribute is already connected to another entity, disconnect it first
+        const existingParentEntity = newNodes.find(n => 
+          n.type === 'entityNode' && 
+          n.id !== entityNode.id &&
+          n.data.attributes?.some(attr => attr.id === attributeNode.id)
+        );
+        
+        if (existingParentEntity) {
+          // Remove attribute from previous parent
+          newNodes = newNodes.map(n => {
+            if (n.id === existingParentEntity.id) {
+              return {
+                ...n,
+                data: {
+                  ...n.data,
+                  attributes: n.data.attributes.filter(attr => attr.id !== attributeNode.id)
+                }
+              };
+            }
+            return n;
+          });
+          
+          // Remove old edge between attribute and previous parent
+          newEdges = newEdges.filter(e => 
+            !((e.source === existingParentEntity.id && e.target === attributeNode.id) ||
+              (e.source === attributeNode.id && e.target === existingParentEntity.id))
+          );
+        }
+        
+        // Add attribute to new parent entity
         const currentAttributes = entityNode.data.attributes || [];
         if (!currentAttributes.some(attr => attr.id === attributeNode.id)) {
-          const updatedEntityNode = { ...entityNode, data: { ...entityNode.data, attributes: [...currentAttributes, { id: attributeNode.id, name: attributeNode.data.label, isKey: attributeNode.data.isKey || false }] } };
+          const updatedEntityNode = { 
+            ...entityNode, 
+            data: { 
+              ...entityNode.data, 
+              attributes: [
+                ...currentAttributes, 
+                { 
+                  id: attributeNode.id, 
+                  name: attributeNode.data.label, 
+                  isKey: attributeNode.data.isKey || false,
+                  dataType: attributeNode.data.dataType || 'VARCHAR',
+                  allowNull: true,
+                  isUnique: false
+                }
+              ] 
+            } 
+          };
           newNodes = newNodes.map(n => n.id === entityNode.id ? updatedEntityNode : n);
         }
       }
@@ -234,7 +315,7 @@ const useFlowStore = create((set, get) => ({
         }
       }
 
-      set({ nodes: newNodes, edges: addEdge({ ...connection, type: 'erdEdge', label: label, data: edgeData }, get().edges), hasUnsavedChanges: true });
+      set({ nodes: newNodes, edges: addEdge({ ...connection, type: 'erdEdge', label: label, data: edgeData }, newEdges), hasUnsavedChanges: true });
     }
   },
 
@@ -424,9 +505,179 @@ const useFlowStore = create((set, get) => ({
   },
 
   getEntityNodes: () => { return get().nodes.filter(node => node.type === 'entityNode'); },
+  
   updateEdgeCardinality: (edgeId, cardinalityValue) => {
     const mapCardinality = (value) => { switch (value) { case '1': return 'ONE'; case 'N': case 'M': return 'MANY'; default: return 'ONE'; } };
     set({ edges: get().edges.map(e => { if (e.id === edgeId) { return { ...e, label: cardinalityValue, data: { ...e.data, sourceCardinality: mapCardinality(cardinalityValue) } }; } return e; }), hasUnsavedChanges: true });
+  },
+
+  // --- FOREIGN KEY LOGIC ---
+  
+  /**
+   * Add a Foreign Key attribute to an entity
+   * @param {string} entityId - The entity to add FK to
+   * @param {object} fkData - { name, referencedEntity, referencedAttribute }
+   */
+  addForeignKeyToEntity: (entityId, fkData) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity) return;
+    
+    const fkId = `fk-${Date.now()}`;
+    const fkAttribute = {
+      id: fkId,
+      name: fkData.name || `${fkData.referencedEntity}_id`,
+      isKey: false,
+      isForeignKey: true,
+      referencedEntity: fkData.referencedEntity,
+      referencedAttribute: fkData.referencedAttribute || 'id'
+    };
+    
+    // Check if FK already exists
+    const existingFk = entity.data.attributes?.find(attr => 
+      attr.isForeignKey && attr.referencedEntity === fkData.referencedEntity
+    );
+    if (existingFk) return; // FK already exists
+    
+    const updatedAttributes = [...(entity.data.attributes || []), fkAttribute];
+    
+    set({
+      nodes: get().nodes.map(n => n.id === entityId 
+        ? { ...n, data: { ...n.data, attributes: updatedAttributes } } 
+        : n),
+      hasUnsavedChanges: true
+    });
+  },
+
+  /**
+   * Remove a Foreign Key from an entity
+   * @param {string} entityId - The entity to remove FK from
+   * @param {string} referencedEntity - The entity that was referenced
+   */
+  removeForeignKeyFromEntity: (entityId, referencedEntity) => {
+    const entity = get().nodes.find(n => n.id === entityId);
+    if (!entity) return;
+    
+    const updatedAttributes = (entity.data.attributes || []).filter(attr => 
+      !(attr.isForeignKey && attr.referencedEntity === referencedEntity)
+    );
+    
+    set({
+      nodes: get().nodes.map(n => n.id === entityId 
+        ? { ...n, data: { ...n.data, attributes: updatedAttributes } } 
+        : n),
+      hasUnsavedChanges: true
+    });
+  },
+
+  /**
+   * Update relationship type and handle FK migration
+   * @param {string} relationshipId - The relationship node ID
+   * @param {string} newType - '1:1', '1:N', 'N:1', 'M:N'
+   */
+  updateRelationshipType: (relationshipId, newType) => {
+    const relNode = get().nodes.find(n => n.id === relationshipId);
+    if (!relNode) return;
+    
+    const entityConnections = relNode.data.entityConnections || [];
+    if (entityConnections.length !== 2) {
+      // Just update the type without FK logic if not exactly 2 entities
+      set({
+        nodes: get().nodes.map(n => n.id === relationshipId 
+          ? { ...n, data: { ...n.data, relationshipType: newType } } 
+          : n),
+        hasUnsavedChanges: true
+      });
+      return;
+    }
+    
+    const [entity1Id, entity2Id] = entityConnections;
+    const entity1 = get().nodes.find(n => n.id === entity1Id);
+    const entity2 = get().nodes.find(n => n.id === entity2Id);
+    
+    if (!entity1 || !entity2) return;
+    
+    const entity1Name = entity1.data.label;
+    const entity2Name = entity2.data.label;
+    
+    let updatedNodes = [...get().nodes];
+    
+    // First, remove existing FKs from this relationship
+    updatedNodes = updatedNodes.map(n => {
+      if (n.id === entity1Id || n.id === entity2Id) {
+        const attrs = (n.data.attributes || []).filter(attr => 
+          !(attr.isForeignKey && (attr.referencedEntity === entity1Name || attr.referencedEntity === entity2Name))
+        );
+        return { ...n, data: { ...n.data, attributes: attrs } };
+      }
+      return n;
+    });
+    
+    // Now add FKs based on new relationship type
+    // FK goes to the "Many" side, or to entity2 for 1:1
+    switch (newType) {
+      case '1:1':
+        // FK goes to entity2 (second entity)
+        updatedNodes = updatedNodes.map(n => {
+          if (n.id === entity2Id) {
+            const fkAttr = {
+              id: `fk-${Date.now()}`,
+              name: `${entity1Name.toLowerCase()}_id`,
+              isKey: false,
+              isForeignKey: true,
+              referencedEntity: entity1Name
+            };
+            return { ...n, data: { ...n.data, attributes: [...(n.data.attributes || []), fkAttr] } };
+          }
+          return n;
+        });
+        break;
+        
+      case '1:N':
+        // FK goes to entity2 (the "N" / Many side)
+        updatedNodes = updatedNodes.map(n => {
+          if (n.id === entity2Id) {
+            const fkAttr = {
+              id: `fk-${Date.now()}`,
+              name: `${entity1Name.toLowerCase()}_id`,
+              isKey: false,
+              isForeignKey: true,
+              referencedEntity: entity1Name
+            };
+            return { ...n, data: { ...n.data, attributes: [...(n.data.attributes || []), fkAttr] } };
+          }
+          return n;
+        });
+        break;
+        
+      case 'N:1':
+        // FK goes to entity1 (the "N" / Many side)
+        updatedNodes = updatedNodes.map(n => {
+          if (n.id === entity1Id) {
+            const fkAttr = {
+              id: `fk-${Date.now()}-2`,
+              name: `${entity2Name.toLowerCase()}_id`,
+              isKey: false,
+              isForeignKey: true,
+              referencedEntity: entity2Name
+            };
+            return { ...n, data: { ...n.data, attributes: [...(n.data.attributes || []), fkAttr] } };
+          }
+          return n;
+        });
+        break;
+        
+      case 'M:N':
+        // No FK injection - M:N uses a junction table (the relationship itself holds attributes)
+        // Optionally, we could create a junction entity here
+        break;
+    }
+    
+    // Update the relationship type
+    updatedNodes = updatedNodes.map(n => n.id === relationshipId 
+      ? { ...n, data: { ...n.data, relationshipType: newType } } 
+      : n);
+    
+    set({ nodes: updatedNodes, hasUnsavedChanges: true });
   }
 }));
 

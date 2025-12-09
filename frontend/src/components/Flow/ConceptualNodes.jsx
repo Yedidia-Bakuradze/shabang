@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Handle, Position } from 'reactflow';
 import useFlowStore from '../../store/useFlowStore';
 
-// Entity Node - Rectangle with Header and Attribute Body
+// Entity Node - Minimalist Title Card (Header Only)
+// Attributes are shown ONLY in the Sidebar, not on the canvas
 export const EntityNode = ({ id, data, selected }) => {
-  const { updateNodeLabel } = useFlowStore();
+  const { updateNodeLabel, edges } = useFlowStore();
 
   const handleLabelChange = (e) => {
     updateNodeLabel(id, e.target.value);
@@ -12,21 +13,49 @@ export const EntityNode = ({ id, data, selected }) => {
 
   const isWeak = data.isWeak || false;
   const attributes = data.attributes || [];
+  
+  // Count relationships connected to this entity (for dynamic handles)
+  const relationshipCount = useMemo(() => {
+    return edges.filter(e => 
+      (e.source === id || e.target === id) && 
+      e.data?.edgeType === 'relationship'
+    ).length;
+  }, [edges, id]);
+
+  // Determine if we need extra handles (more than 3 relationships)
+  const needsExtraHandles = relationshipCount > 3;
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl min-w-[200px] overflow-hidden ${isWeak ? 'border-double border-4' : 'border-2'
-      } ${selected ? 'border-blue-500' : 'border-gray-400 dark:border-gray-600'
-      }`}>
-
-      {/* Header: Entity Name */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2">
+    <div 
+      className={`
+        rounded-xl shadow-lg overflow-hidden transition-all duration-200
+        ${isWeak ? 'border-double border-4' : 'border-2'}
+        ${selected 
+          ? 'border-blue-400 shadow-blue-500/30 shadow-xl ring-2 ring-blue-400/50' 
+          : 'border-blue-600/50 hover:border-blue-500'
+        }
+      `}
+      style={{ minWidth: '160px' }}
+    >
+      {/* Header: Entity Name - This is the ONLY visible part */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3">
         <input
           type="text"
           value={data.label || 'Entity'}
           onChange={handleLabelChange}
-          className="nodrag w-full bg-transparent text-white font-bold text-center outline-none focus:bg-blue-800 focus:bg-opacity-30 px-2 py-1 rounded transition-colors"
+          className="nodrag w-full bg-transparent text-white font-bold text-base text-center outline-none focus:bg-white/10 px-2 py-1 rounded transition-colors placeholder:text-blue-200"
           placeholder="Entity Name"
         />
+        
+        {/* Attribute count badge (optional visual indicator) */}
+        {attributes.length > 0 && (
+          <div className="flex justify-center mt-1">
+            <span className="text-xs text-blue-200 bg-blue-800/50 px-2 py-0.5 rounded-full">
+              {attributes.length} attribute{attributes.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+        
         {isWeak && (
           <div className="text-center text-xs text-blue-200 mt-1 font-medium">
             Weak Entity
@@ -34,76 +63,59 @@ export const EntityNode = ({ id, data, selected }) => {
         )}
       </div>
 
-      {/* Body: Attribute List */}
-      <div className="px-3 py-2 space-y-1 bg-gray-50 dark:bg-gray-900">
-        {attributes.length === 0 ? (
-          <div className="text-xs text-gray-400 italic text-center py-2">
-            No attributes
-          </div>
-        ) : (
-          attributes.map((attr) => (
-            <div
-              key={attr.id}
-              className={`flex items-center gap-2 text-sm px-2 py-1 rounded ${attr.isKey ? 'font-bold text-yellow-600 dark:text-yellow-400' :
-                attr.isForeignKey ? 'italic text-gray-600 dark:text-gray-400' :
-                  'text-gray-800 dark:text-gray-200'
-                }`}
-            >
-              {/* Icon for PK or FK */}
-              {attr.isKey && (
-                <svg className="w-3 h-3 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
-                </svg>
-              )}
-              {attr.isForeignKey && (
-                <svg className="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                </svg>
-              )}
-              <span className={attr.isKey ? 'underline decoration-2' : ''}>
-                {attr.name}
-              </span>
-              {attr.isForeignKey && (
-                <span className="text-xs text-gray-400"> (FK → {attr.referencedEntity || '?'})</span>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+      {/* --- HANDLES - Positioned at the edges/frame --- */}
 
-      {/* --- HANDLES (Rendered last to ensure they are on top) --- */}
-
-      {/* Left */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="handle-relations-left"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
-      />
-
-      {/* Right */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="handle-relations-right"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
-      />
-
-      {/* Top */}
+      {/* Top Handle - For Relationships */}
       <Handle
         type="target"
         position={Position.Top}
-        id="handle-relations-top"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-600"
+        id="handle-top"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-white !-top-1.5"
       />
 
-      {/* Bottom (used for attributes primarily, but acts as a standard bottom handle) */}
+      {/* Left Handle - For Relationships */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="handle-left"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-white !-left-1.5"
+      />
+
+      {/* Right Handle - For Relationships */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="handle-right"
+        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-white !-right-1.5"
+      />
+
+      {/* Bottom Handle - ONLY for Attributes (Green) */}
       <Handle
         type="source"
         position={Position.Bottom}
         id="handle-attributes"
-        className="!bg-green-400 !w-3 !h-3 !border-2 !border-green-700"
+        className="!bg-green-400 !w-3 !h-3 !border-2 !border-white !-bottom-1.5"
       />
+
+      {/* Dynamic Extra Handles for many relationships */}
+      {needsExtraHandles && (
+        <>
+          <Handle
+            type="target"
+            position={Position.Top}
+            id="handle-top-left"
+            className="!bg-blue-400 !w-2.5 !h-2.5 !border-2 !border-white !-top-1"
+            style={{ left: '25%' }}
+          />
+          <Handle
+            type="source"
+            position={Position.Top}
+            id="handle-top-right"
+            className="!bg-blue-400 !w-2.5 !h-2.5 !border-2 !border-white !-top-1"
+            style={{ left: '75%' }}
+          />
+        </>
+      )}
     </div>
   );
 };

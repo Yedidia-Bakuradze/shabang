@@ -201,7 +201,10 @@ export const loadExampleProject = () => {
         data: {
           label: rel.label,
           shape: 'diamond',
-          nodeType: 'relationship'
+          nodeType: 'relationship',
+          relationshipType: rel.type, // Store the type (1:1, 1:N, M:N)
+          entityConnections: [rel.source, rel.target], // CRITICAL: Track connected entities for Sidebar
+          attributes: [] // M:N relationships can have attributes
         }
       });
       

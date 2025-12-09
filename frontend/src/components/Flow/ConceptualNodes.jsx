@@ -28,30 +28,30 @@ export const EntityNode = ({ id, data, selected }) => {
   return (
     <div 
       className={`
-        rounded-xl shadow-lg overflow-hidden transition-all duration-200
+        rounded-lg shadow-md overflow-hidden transition-all duration-200
         ${isWeak ? 'border-double border-4' : 'border-2'}
         ${selected 
-          ? 'border-blue-400 shadow-blue-500/30 shadow-xl ring-2 ring-blue-400/50' 
+          ? 'border-blue-400 shadow-blue-500/30 shadow-lg ring-2 ring-blue-400/50' 
           : 'border-blue-600/50 hover:border-blue-500'
         }
       `}
-      style={{ minWidth: '160px' }}
+      style={{ minWidth: '100px', maxWidth: '120px' }}
     >
       {/* Header: Entity Name - This is the ONLY visible part */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2">
         <input
           type="text"
           value={data.label || 'Entity'}
           onChange={handleLabelChange}
-          className="nodrag w-full bg-transparent text-white font-bold text-base text-center outline-none focus:bg-white/10 px-2 py-1 rounded transition-colors placeholder:text-blue-200"
+          className="nodrag w-full bg-transparent text-white font-bold text-xs text-center outline-none focus:bg-white/10 px-1 py-0.5 rounded transition-colors placeholder:text-blue-200"
           placeholder="Entity Name"
         />
         
         {/* Attribute count badge (optional visual indicator) */}
         {attributes.length > 0 && (
-          <div className="flex justify-center mt-1">
-            <span className="text-xs text-blue-200 bg-blue-800/50 px-2 py-0.5 rounded-full">
-              {attributes.length} attribute{attributes.length !== 1 ? 's' : ''}
+          <div className="flex justify-center mt-0.5">
+            <span className="text-[10px] text-blue-200 bg-blue-800/50 px-1.5 py-0.5 rounded-full">
+              {attributes.length} attr
             </span>
           </div>
         )}
@@ -131,15 +131,15 @@ export const AttributeNode = ({ id, data, selected }) => {
   return (
     <div className="relative">
 
-      <div className={`bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-lg border-2 ${selected ? 'border-purple-300' : 'border-purple-700'
-        } px-6 py-3 min-w-[120px] flex items-center justify-center`}>
+      <div className={`bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-md border-2 ${selected ? 'border-purple-300' : 'border-purple-700'
+        } px-3 py-1.5 min-w-[70px] max-w-[90px] flex items-center justify-center`}>
         <input
           type="text"
           value={data.label || 'Attribute'}
           onChange={handleLabelChange}
-          className={`nodrag w-full bg-transparent text-white font-medium text-sm text-center outline-none focus:bg-purple-700 focus:bg-opacity-30 px-2 py-1 rounded transition-colors ${data.isKey ? 'underline decoration-2 underline-offset-2' : ''
+          className={`nodrag w-full bg-transparent text-white font-medium text-[10px] text-center outline-none focus:bg-purple-700 focus:bg-opacity-30 px-1 py-0.5 rounded transition-colors ${data.isKey ? 'underline decoration-2 underline-offset-2' : ''
             }`}
-          placeholder="Attribute"
+          placeholder="Attr"
         />
       </div>
 
@@ -179,11 +179,11 @@ export const RelationshipNode = ({ id, data, selected }) => {
   const isIdentifying = data.isIdentifying || false;
 
   return (
-    <div className="relative" style={{ width: '140px', height: '140px' }}>
+    <div className="relative" style={{ width: '80px', height: '80px' }}>
 
       {/* Diamond Shape Background */}
       <div
-        className={`absolute inset-0 bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg ${isIdentifying ? 'border-double border-4' : 'border-2'
+        className={`absolute inset-0 bg-gradient-to-br from-orange-400 to-orange-600 shadow-md ${isIdentifying ? 'border-double border-4' : 'border-2'
           } ${selected ? 'border-orange-300' : 'border-orange-700'
           } flex items-center justify-center`}
         style={{
@@ -201,15 +201,15 @@ export const RelationshipNode = ({ id, data, selected }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px'
+            padding: '10px'
           }}
         >
           <input
             type="text"
-            value={data.label || 'Relationship'}
+            value={data.label || 'Rel'}
             onChange={handleLabelChange}
-            className="nodrag w-full bg-transparent text-white font-medium text-sm text-center outline-none focus:bg-orange-700 focus:bg-opacity-30 px-2 py-1 rounded transition-colors"
-            placeholder="Relationship"
+            className="nodrag w-full bg-transparent text-white font-medium text-[10px] text-center outline-none focus:bg-orange-700 focus:bg-opacity-30 px-1 py-0.5 rounded transition-colors"
+            placeholder="Rel"
           />
         </div>
       </div>
@@ -256,23 +256,23 @@ export const IsANode = ({ id, data, selected }) => {
   };
 
   return (
-    <div className="relative" style={{ width: '120px', height: '120px' }}>
+    <div className="relative" style={{ width: '70px', height: '70px' }}>
 
       {/* Triangle Shape using clip-path */}
       <div
-        className={`absolute inset-0 bg-gradient-to-br from-green-400 to-green-600 shadow-lg border-2 ${selected ? 'border-green-300' : 'border-green-700'
+        className={`absolute inset-0 bg-gradient-to-br from-green-400 to-green-600 shadow-md border-2 ${selected ? 'border-green-300' : 'border-green-700'
           } flex items-center justify-center`}
         style={{
           clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
           zIndex: 0
         }}
       >
-        <div className="mt-8">
+        <div className="mt-5">
           <input
             type="text"
             value={data.label || 'ISA'}
             onChange={handleLabelChange}
-            className="nodrag w-16 bg-transparent text-white font-semibold text-xs text-center outline-none focus:bg-green-700 focus:bg-opacity-30 px-1 py-1 rounded transition-colors"
+            className="nodrag w-12 bg-transparent text-white font-semibold text-[10px] text-center outline-none focus:bg-green-700 focus:bg-opacity-30 px-1 py-0.5 rounded transition-colors"
             placeholder="ISA"
           />
         </div>

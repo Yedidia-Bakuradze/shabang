@@ -4,6 +4,7 @@ import {
   applyEdgeChanges,
   addEdge
 } from 'reactflow';
+import { calculateAutoLayout } from '../utils/autoLayout';
 
 const useFlowStore = create((set, get) => ({
   nodes: [],
@@ -336,6 +337,12 @@ const useFlowStore = create((set, get) => ({
     if (nodeType === 'relationshipNode') newNode.data = { label: 'New_Relationship', entityConnections: [], attributes: [] };
 
     set({ nodes: [...get().nodes, newNode], hasUnsavedChanges: true });
+  },
+
+  autoLayout: () => {
+    const { nodes, edges } = get();
+    const layoutedNodes = calculateAutoLayout(nodes, edges);
+    set({ nodes: layoutedNodes, hasUnsavedChanges: true });
   },
 
   updateNodeData: (nodeId, newData) => {

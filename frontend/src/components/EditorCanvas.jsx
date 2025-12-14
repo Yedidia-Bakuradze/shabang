@@ -3,7 +3,8 @@ import ReactFlow, {
   Background,
   Controls,
   MiniMap,
-  Panel
+  Panel,
+  useReactFlow // Keep this import
 } from 'reactflow';
 
 import 'reactflow/dist/style.css';
@@ -14,6 +15,97 @@ import { useTheme } from '../context/ThemeContext';
 import { EntityNode, AttributeNode, RelationshipNode, IsANode } from './Flow/ConceptualNodes';
 import ErdEdge from './Flow/ErdEdge';
 import ErdMarkers from './Flow/ErdMarkers';
+
+// --- FIXED COMPONENT ---
+const NavigationMiniMap = ({ darkMode }) => {
+  // 1. We use 'getNodes' instead of 'getNodesBounds' to be safe across versions
+  const { getNodes, setCenter } = useReactFlow();
+
+  const onMiniMapClick = useCallback((event) => {
+    const mmRect = event.currentTarget.getBoundingClientRect();
+    const clickX = event.clientX - mmRect.left;
+    const clickY = event.clientY - mmRect.top;
+
+    // 2. Manual Bounds Calculation (Polyfill for getNodesBounds)
+    const nodes = getNodes();
+    if (!nodes || nodes.length === 0) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    nodes.forEach((node) => {
+      const x = node.position.x;
+      const y = node.position.y;
+      // Fallback dimensions if node isn't measured yet (prevents crashes)
+      const w = node.width || node.style?.width || 150;
+      const h = node.height || node.style?.height || 50;
+
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x + w > maxX) maxX = x + w;
+      if (y + h > maxY) maxY = y + h;
+    });
+
+    const bounds = {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+
+    if (bounds.width === 0 || bounds.height === 0) return;
+
+    // 3. Standard Logic continues...
+    const mmWidth = mmRect.width;
+    const mmHeight = mmRect.height;
+    const boundsRatio = bounds.width / bounds.height;
+    const mmRatio = mmWidth / mmHeight;
+
+    let scale, offsetX, offsetY;
+
+    if (boundsRatio > mmRatio) {
+      scale = mmWidth / bounds.width;
+      offsetY = (mmHeight - (bounds.height * scale)) / 2;
+      offsetX = 0;
+    } else {
+      scale = mmHeight / bounds.height;
+      offsetX = (mmWidth - (bounds.width * scale)) / 2;
+      offsetY = 0;
+    }
+
+    const targetX = (clickX - offsetX) / scale + bounds.x;
+    const targetY = (clickY - offsetY) / scale + bounds.y;
+
+    setCenter(targetX, targetY, { zoom: 1, duration: 800 });
+  }, [getNodes, setCenter]);
+
+  return (
+    <MiniMap
+      onClick={onMiniMapClick}
+      zoomable
+      pannable
+      style={{
+        backgroundColor: darkMode ? 'rgba(15, 10, 30, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+        border: darkMode ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid #e5e7eb',
+        borderRadius: '12px',
+        backdropFilter: 'blur(12px)',
+        cursor: 'pointer'
+      }}
+      maskColor={darkMode ? 'rgba(15, 10, 30, 0.6)' : 'rgba(240, 242, 245, 0.6)'}
+      nodeColor={(n) =>
+        n.type === 'entityNode'
+          ? '#06b6d4'
+          : n.type === 'attributeNode'
+            ? '#a855f7'
+            : n.type === 'relationshipNode'
+              ? '#f59e0b'
+              : '#10b981'
+      }
+    />
+  );
+};
 
 const EditorCanvas = () => {
   const {
@@ -73,17 +165,11 @@ const EditorCanvas = () => {
     <div className="w-full h-full transition-colors duration-300"
       style={{
         // StitchAI Midnight Purple gradient background
-        background: darkMode 
+        background: darkMode
           ? 'linear-gradient(135deg, #0f0a1e 0%, #1a1035 25%, #0d1b2a 50%, #1a0a2e 75%, #0f0a1e 100%)'
           : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)'
       }}
     >
-      {/* 
-        CSS to ensure edges render BEHIND nodes:
-        - .react-flow__edges has lower z-index than nodes
-        - Edge labels maintain high z-index to stay visible
-        - StitchAI-style grid pattern
-      */}
       <style>{`
         .react-flow__edges {
           z-index: 0 !important;
@@ -121,66 +207,37 @@ const EditorCanvas = () => {
         deleteKeyCode={['Backspace', 'Delete']}
         colorMode={darkMode ? 'dark' : 'light'}
         elevateEdgesOnSelect={false}
+        minZoom={0.05}
       >
-        {/* DARK-MODE AWARE MARKERS */}
         <ErdMarkers />
 
-        {/* BACKGROUND - StitchAI style subtle grid */}
         <Background
           color={darkMode ? '#6366f1' : '#94a3b8'}
           gap={24}
           size={1}
-          style={{ opacity: darkMode ? 0.15 : 0.3 }}
+          style={{ opacity: darkMode ? 0.3 : 0.3 }}
         />
 
-        {/* CONTROLS - Glassmorphism style */}
         <Controls
           className="
-            /* MAIN BOX STYLING - Glassmorphism */
             !backdrop-blur-xl
             !bg-white/80 dark:!bg-slate-900/60 
             !border !border-white/20 dark:!border-slate-700/50 
             !shadow-xl !m-4
             !rounded-xl
-
-            /* BUTTON STYLING */
             [&>button]:!bg-transparent
             [&>button]:!border-b 
             [&>button]:!border-gray-200/50 dark:[&>button]:!border-slate-700/50
-            
-            /* ICON COLORS */
             [&>button]:!fill-indigo-600 dark:[&>button]:!fill-indigo-400
-            
-            /* HOVER STATES */
             [&>button:hover]:!bg-gray-100/50 
             dark:[&>button:hover]:!bg-slate-800/50
-            
-            /* Last button border fix */
             [&>button:last-child]:!border-b-0
           "
         />
 
-        {/* MINIMAP - Glassmorphism style */}
-        <MiniMap
-          style={{
-            backgroundColor: darkMode ? 'rgba(15, 10, 30, 0.8)' : 'rgba(255, 255, 255, 0.9)',
-            border: darkMode ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid #e5e7eb',
-            borderRadius: '12px',
-            backdropFilter: 'blur(12px)',
-          }}
-          maskColor={darkMode ? 'rgba(15, 10, 30, 0.6)' : 'rgba(240, 242, 245, 0.6)'}
-          nodeColor={(n) =>
-            n.type === 'entityNode'
-              ? '#06b6d4' // Cyan for entities
-              : n.type === 'attributeNode'
-                ? '#a855f7' // Purple for attributes
-                : n.type === 'relationshipNode'
-                  ? '#f59e0b' // Amber for relationships
-                  : '#10b981' // Emerald for ISA
-          }
-        />
+        {/* Custom MiniMap with Fix */}
+        <NavigationMiniMap darkMode={darkMode} />
 
-        {/* Right-Side Add Node Panel - Glassmorphism */}
         <Panel position="top-right" className="space-x-2">
           <div className="
             flex flex-col gap-2 

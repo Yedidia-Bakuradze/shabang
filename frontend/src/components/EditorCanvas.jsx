@@ -119,6 +119,7 @@ const EditorCanvas = () => {
     autoLayout
   } = useFlowStore();
 
+  const proOptions = { hideAttribution: true };
   const { darkMode } = useTheme();
 
   // Register custom node types
@@ -208,6 +209,7 @@ const EditorCanvas = () => {
         colorMode={darkMode ? 'dark' : 'light'}
         elevateEdgesOnSelect={false}
         minZoom={0.05}
+        proOptions={proOptions}
       >
         <ErdMarkers />
 

@@ -34,16 +34,12 @@ jobs:
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v2
         with:
-          appSourcePath: ${{ github.workspace }}/backend/DockerFile
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
+          appSourcePath: ${{ github.workspace }}/backend
+          dockerfilePath: Dockerfile
           registryUrl: shabangacr.azurecr.io
           registryUsername: ${{ secrets.BACKEND_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.BACKEND_REGISTRY_PASSWORD }}
           containerAppName: backend
           resourceGroup: rg_shabang
           imageToBuild: shabangacr.azurecr.io/backend:${{ github.sha }}
-          _buildArgumentsKey_: |
-            _buildArgumentsValues_
-
 

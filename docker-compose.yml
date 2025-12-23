@@ -19,7 +19,7 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASS}
-      - DB_HOST=db
+      - DB_HOST=${DB_HOST}
       - SECRET_KEY=${SECRET_KEY}
       - SCHEMA_ENGINE_URL=http://schema-engine:8001
     depends_on:

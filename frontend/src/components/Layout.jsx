@@ -38,7 +38,10 @@ const Layout = ({ children }) => {
                   <div className="hidden sm:ml-6 sm:flex sm:items-center">
                     {user ? (
                       <Menu as="div" className="relative ml-3">
-                        <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {user.username}
+                          </span>
                           <Menu.Button className="flex rounded-full bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
                             <span className="sr-only">Open user menu</span>
                             <UserCircleIcon className="h-8 w-8 text-gray-400 dark:text-gray-300" aria-hidden="true" />

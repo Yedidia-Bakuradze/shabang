@@ -22,9 +22,16 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
             closeModal();
         } catch (error) {
             console.error("Failed to create project", error);
-            toast.error('Failed to create project');
+            if (error.response?.status === 403) {
+                toast.error('Authentication failed. Please login again.');
+            } else if (error.response?.status === 401) {
+                toast.error('Your session has expired. Please login again.');
+            } else {
+                toast.error(error.response?.data?.error || 'Failed to create project');
+            }
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (
@@ -53,10 +60,10 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
                             leaveFrom="opacity-100 scale-100"
                             leaveTo="opacity-0 scale-95"
                         >
-                            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
                                 <Dialog.Title
                                     as="h3"
-                                    className="text-lg font-medium leading-6 text-gray-900"
+                                    className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100"
                                 >
                                     Create New Project
                                 </Dialog.Title>
@@ -69,14 +76,15 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
                                         required
                                         placeholder="My Awesome Project"
                                     />
+
                                     <div className="mb-4">
-                                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             Description
                                         </label>
                                         <textarea
                                             id="description"
                                             rows={3}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                             value={description}
                                             onChange={(e) => setDescription(e.target.value)}
                                             placeholder="Optional description"

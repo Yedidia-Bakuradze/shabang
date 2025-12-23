@@ -34,7 +34,7 @@ function App() {
               path="/editor/:projectId"
               element={
                 <ProtectedRoute>
-                  <Layout><Editor /></Layout>
+                  <Editor />
                 </ProtectedRoute>
               }
             />

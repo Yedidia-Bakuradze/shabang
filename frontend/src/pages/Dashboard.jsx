@@ -4,10 +4,11 @@ import api from '../api/axios';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import CreateProjectModal from '../components/CreateProjectModal';
-import { PlusIcon, FolderIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, FolderIcon, TrashIcon, BeakerIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { Dialog, Transition } from '@headlessui/react';
+import { loadExampleProject } from '../data/exampleProject';
 
 const Dashboard = () => {
     const [projects, setProjects] = useState([]);
@@ -33,6 +34,20 @@ const Dashboard = () => {
 
     const handleProjectCreated = (newProject) => {
         setProjects([...projects, newProject]);
+    };
+
+    const createExampleProject = async () => {
+        try {
+            const projectData = loadExampleProject();
+            const response = await api.post('/project/', projectData);
+            toast.success('Example project created!');
+            setProjects([...projects, response.data]);
+            // Navigate to the new project
+            navigate(`/editor/${response.data.id}`);
+        } catch (error) {
+            console.error("Failed to create example project", error);
+            toast.error('Failed to create example project');
+        }
     };
 
     const openProject = (projectId) => {
@@ -83,10 +98,20 @@ const Dashboard = () => {
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">My Projects</h1>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">Manage your ERD designs</p>
             </div>
-            <Button onClick={() => setIsModalOpen(true)} className="flex items-center">
-                <PlusIcon className="h-5 w-5 mr-2" />
-                New Project
-            </Button>
+            <div className="flex gap-3">
+                <Button 
+                    onClick={createExampleProject} 
+                    variant="secondary"
+                    className="flex items-center bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-700"
+                >
+                    <BeakerIcon className="h-5 w-5 mr-2" />
+                    Create Example Project
+                </Button>
+                <Button onClick={() => setIsModalOpen(true)} className="flex items-center">
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    New Project
+                </Button>
+            </div>
             </div>
 
             {loading ? (
@@ -98,7 +123,15 @@ const Dashboard = () => {
                 <FolderIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-300" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No projects</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">Get started by creating a new project.</p>
-                <div className="mt-6">
+                <div className="mt-6 flex justify-center gap-3">
+                <Button 
+                    onClick={createExampleProject}
+                    variant="secondary"
+                    className="bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-200"
+                >
+                    <BeakerIcon className="h-5 w-5 mr-2 inline" />
+                    Try Example
+                </Button>
                 <Button onClick={() => setIsModalOpen(true)}>
                     Create Project
                 </Button>

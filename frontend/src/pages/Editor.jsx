@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import EditorCanvas from '../components/EditorCanvas';
 import PropertyPanel from '../components/Flow/PropertyPanel';
+import DSDButton from '../components/DSDButton';
+import DSDModal from '../components/DSDModal';
 import api from '../api/axios';
 import { toast } from 'react-hot-toast';
 import useFlowStore from '../store/useFlowStore';
@@ -12,6 +14,7 @@ const Editor = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [projectName, setProjectName] = useState('');
+    const [showDSDModal, setShowDSDModal] = useState(false);
     const { loadProjectData, getCanvasData, markAsSaved, setProjectId, hasUnsavedChanges } = useFlowStore();
 
     // Load project data
@@ -124,6 +127,9 @@ const Editor = () => {
                         </div>
                     </div>
                     <EditorCanvas />
+                    
+                    {/* DSD Button */}
+                    <DSDButton onClick={() => setShowDSDModal(true)} />
                 </div>
 
                 {/* Property Panel Sidebar */}
@@ -131,6 +137,15 @@ const Editor = () => {
                     <PropertyPanel />
                 </div>
             </div>
+            
+            {/* DSD Modal */}
+            {showDSDModal && (
+                <DSDModal 
+                    isOpen={showDSDModal}
+                    onClose={() => setShowDSDModal(false)}
+                    projectId={projectId}
+                />
+            )}
         </Layout>
     );
 };

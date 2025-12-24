@@ -3,11 +3,14 @@ import useFlowStore from '../../store/useFlowStore';
 import EntityPanel from './panels/EntityPanel';
 import AttributePanel from './panels/AttributePanel';
 import RelationshipPanel from './panels/RelationshipPanel';
+import DSDTablePanel from './panels/DSDTablePanel';
 
 const PropertyPanel = () => {
-  const { selectedNodeId, nodes } = useFlowStore();
+  const { selectedNodeId, nodes, viewMode, dsdNodes } = useFlowStore();
   
-  const selectedNode = nodes.find(node => node.id === selectedNodeId);
+  // Use the appropriate nodes based on view mode
+  const activeNodes = viewMode === 'dsd' ? dsdNodes : nodes;
+  const selectedNode = activeNodes.find(node => node.id === selectedNodeId);
 
   if (!selectedNode) {
     return (
@@ -22,6 +25,11 @@ const PropertyPanel = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Select an element on the canvas to edit its properties
           </p>
+          {viewMode === 'dsd' && (
+            <p className="text-xs text-indigo-500 mt-2">
+              DSD View Mode - Read Only
+            </p>
+          )}
         </div>
       </div>
     );
@@ -37,6 +45,7 @@ const PropertyPanel = () => {
           {selectedNode.type === 'entityNode' && 'Entity'}
           {selectedNode.type === 'attributeNode' && 'Attribute'}
           {selectedNode.type === 'relationshipNode' && 'Relationship'}
+          {selectedNode.type === 'dsdTableNode' && 'DSD Table'}
         </p>
       </div>
       
@@ -49,6 +58,9 @@ const PropertyPanel = () => {
         )}
         {selectedNode.type === 'relationshipNode' && (
           <RelationshipPanel node={selectedNode} />
+        )}
+        {selectedNode.type === 'dsdTableNode' && (
+          <DSDTablePanel node={selectedNode} />
         )}
       </div>
     </div>

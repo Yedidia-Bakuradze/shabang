@@ -9,6 +9,7 @@ class User(models.Model):
     last_name = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     
     @property
     def is_authenticated(self):

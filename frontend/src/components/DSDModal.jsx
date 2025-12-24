@@ -3,6 +3,7 @@ import { XMarkIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import DSDViewer from '../components/DSDViewer';
 import DSDTransformPanel from '../components/DSDTransformPanel';
 import useDSDTransform from '../hooks/useDSDTransform';
+import useFlowStore from '../store/useFlowStore';
 import { toast } from 'react-hot-toast';
 
 /**
@@ -12,6 +13,7 @@ import { toast } from 'react-hot-toast';
  */
 const DSDModal = ({ isOpen, onClose, projectId, projectName }) => {
   const [showPanel, setShowPanel] = useState(true);
+  const { setDSDData, setViewMode, getCanvasData } = useFlowStore();
   const { 
     transformERDtoDSD, 
     isLoading, 
@@ -26,11 +28,32 @@ const DSDModal = ({ isOpen, onClose, projectId, projectName }) => {
 
   const handleTransform = async (options) => {
     try {
-      await transformERDtoDSD(projectId, options);
+      // Get current canvas data (nodes and edges) to send to backend
+      const canvasData = getCanvasData();
+      
+      const result = await transformERDtoDSD(projectId, {
+        ...options,
+        entities: canvasData  // Send current canvas data, not saved project data
+      });
       setShowPanel(false);
+      
+      // Store DSD data in the global store for canvas view
+      if (result?.dsd) {
+        setDSDData(result.dsd);
+      }
+      
       toast.success('DSD generated successfully!');
     } catch (err) {
       toast.error(error || 'Failed to generate DSD');
+    }
+  };
+  
+  const handleViewOnCanvas = () => {
+    if (dsd) {
+      setDSDData(dsd);
+      setViewMode('dsd');
+      onClose();
+      toast.success('Switched to DSD Canvas View');
     }
   };
 
@@ -45,12 +68,25 @@ const DSDModal = ({ isOpen, onClose, projectId, projectName }) => {
               <p className="text-sm text-gray-600">{projectName}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {dsd && (
+              <button
+                onClick={handleViewOnCanvas}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all flex items-center gap-2 font-medium"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                </svg>
+                View on Canvas
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -82,10 +118,15 @@ const DSDModal = ({ isOpen, onClose, projectId, projectName }) => {
             <div className="flex-1 overflow-hidden">
               {error && !dsd ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-center p-8">
+                  <div className="text-center p-8 max-w-md">
                     <div className="text-red-600 text-6xl mb-4">⚠️</div>
                     <h3 className="text-xl font-bold text-red-600 mb-2">Transformation Failed</h3>
-                    <p className="text-gray-600">{error}</p>
+                    <p className="text-gray-600 mb-4">{error}</p>
+                    {error.includes('entities') && (
+                      <p className="text-sm text-gray-500 mb-4">
+                        💡 Please add some entities and attributes to your diagram first, then try again.
+                      </p>
+                    )}
                     <button
                       onClick={() => setShowPanel(true)}
                       className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

@@ -12,6 +12,116 @@ const useFlowStore = create((set, get) => ({
   projectId: null,
   hasUnsavedChanges: false,
   selectedNodeId: null,
+  
+  // DSD View Mode State
+  viewMode: 'erd', // 'erd' | 'dsd'
+  dsdData: null,   // DSD tables from backend
+  dsdNodes: [],    // React Flow nodes for DSD view
+  dsdEdges: [],    // React Flow edges for DSD view (FK relationships)
+
+  setViewMode: (mode) => {
+    set({ viewMode: mode });
+  },
+
+  setDSDData: (dsd) => {
+    if (!dsd || !dsd.tables) {
+      set({ dsdData: null, dsdNodes: [], dsdEdges: [] });
+      return;
+    }
+    
+    // Generate React Flow nodes and edges from DSD data
+    const { nodes: dsdNodes, edges: dsdEdges } = get().generateDSDNodesAndEdges(dsd);
+    set({ dsdData: dsd, dsdNodes, dsdEdges });
+  },
+
+  generateDSDNodesAndEdges: (dsd) => {
+    const nodes = [];
+    const edges = [];
+    const tablePositions = {};
+    
+    // Layout constants
+    const SPACING_X = 350;
+    const SPACING_Y = 300;
+    const COLS = 3;
+    
+    // Create DSD table nodes
+    dsd.tables.forEach((table, index) => {
+      const row = Math.floor(index / COLS);
+      const col = index % COLS;
+      const x = 100 + col * SPACING_X;
+      const y = 100 + row * SPACING_Y;
+      
+      tablePositions[table.name] = { x, y };
+      
+      // Find PK and FK columns
+      const pkColumns = new Set();
+      const fkColumns = {};
+      
+      table.constraints?.forEach(constraint => {
+        if (constraint.type === 'PRIMARY KEY') {
+          constraint.columns?.forEach(col => pkColumns.add(col));
+        }
+        if (constraint.type === 'FOREIGN KEY') {
+          constraint.columns?.forEach(col => {
+            fkColumns[col] = {
+              referencedTable: constraint.referenced_table,
+              referencedColumn: constraint.referenced_columns?.[0]
+            };
+          });
+        }
+      });
+      
+      nodes.push({
+        id: `dsd-${table.name}`,
+        type: 'dsdTableNode',
+        position: { x, y },
+        data: {
+          tableName: table.name,
+          description: table.description,
+          columns: table.columns.map(col => ({
+            name: col.name,
+            type: col.sql_type,
+            nullable: col.nullable,
+            isPrimaryKey: pkColumns.has(col.name),
+            isForeignKey: !!fkColumns[col.name],
+            fkReference: fkColumns[col.name]
+          })),
+          constraints: table.constraints,
+          indexes: table.indexes
+        }
+      });
+    });
+    
+    // Create FK edges
+    dsd.tables.forEach(table => {
+      table.constraints?.forEach(constraint => {
+        if (constraint.type === 'FOREIGN KEY' && constraint.referenced_table) {
+          const sourceTableName = table.name;
+          const targetTableName = constraint.referenced_table;
+          const fkColumn = constraint.columns?.[0];
+          const pkColumn = constraint.referenced_columns?.[0];
+          
+          if (tablePositions[targetTableName]) {
+            edges.push({
+              id: `dsd-edge-${sourceTableName}-${targetTableName}-${fkColumn}`,
+              source: `dsd-${sourceTableName}`,
+              target: `dsd-${targetTableName}`,
+              sourceHandle: `${fkColumn}-right`,
+              targetHandle: `${pkColumn}-left`,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: '#6366f1', strokeWidth: 2 },
+              label: `${fkColumn} → ${pkColumn}`,
+              labelStyle: { fontSize: 10, fill: '#6366f1' },
+              labelBgStyle: { fill: 'white', fillOpacity: 0.8 }
+            });
+          }
+        }
+      });
+    });
+    
+    return { nodes, edges };
+  },
 
   setSelectedNodeId: (id) => {
     set({ selectedNodeId: id });

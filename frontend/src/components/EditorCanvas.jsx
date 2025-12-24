@@ -13,6 +13,7 @@ import useFlowStore from '../store/useFlowStore';
 import { useTheme } from '../context/ThemeContext';
 
 import { EntityNode, AttributeNode, RelationshipNode, IsANode } from './Flow/ConceptualNodes';
+import DSDTableNode from './Flow/DSDTableNode';
 import ErdEdge from './Flow/ErdEdge';
 import ErdMarkers from './Flow/ErdMarkers';
 
@@ -116,18 +117,28 @@ const EditorCanvas = () => {
     onConnect,
     addNode,
     setSelectedNodeId,
-    autoLayout
+    autoLayout,
+    viewMode,
+    setViewMode,
+    dsdNodes,
+    dsdEdges,
+    dsdData
   } = useFlowStore();
 
   const proOptions = { hideAttribution: true };
   const { darkMode } = useTheme();
+
+  // Determine which nodes/edges to display based on view mode
+  const displayNodes = viewMode === 'dsd' ? dsdNodes : nodes;
+  const displayEdges = viewMode === 'dsd' ? dsdEdges : edges;
 
   // Register custom node types
   const nodeTypes = useMemo(() => ({
     entityNode: EntityNode,
     attributeNode: AttributeNode,
     relationshipNode: RelationshipNode,
-    isaNode: IsANode
+    isaNode: IsANode,
+    dsdTableNode: DSDTableNode
   }), []);
 
   // Register custom edge types
@@ -193,11 +204,11 @@ const EditorCanvas = () => {
         }
       `}</style>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        nodes={displayNodes}
+        edges={displayEdges}
+        onNodesChange={viewMode === 'erd' ? onNodesChange : undefined}
+        onEdgesChange={viewMode === 'erd' ? onEdgesChange : undefined}
+        onConnect={viewMode === 'erd' ? onConnect : undefined}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onSelectionChange={onSelectionChange}
@@ -240,6 +251,56 @@ const EditorCanvas = () => {
         {/* Custom MiniMap with Fix */}
         <NavigationMiniMap darkMode={darkMode} />
 
+        {/* View Mode Toggle - Bottom Left */}
+        <Panel position="bottom-left" className="m-4">
+          <div className={`
+            flex items-center gap-1 p-1 rounded-xl shadow-xl border
+            backdrop-blur-xl
+            ${darkMode 
+              ? 'bg-slate-900/60 border-slate-700/50' 
+              : 'bg-white/80 border-white/20'}
+          `}>
+            <button
+              onClick={() => setViewMode('erd')}
+              className={`
+                px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2
+                ${viewMode === 'erd'
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
+                  : darkMode
+                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'}
+              `}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zM8 9a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 11-2 0v-3H9a1 1 0 01-1-1z" />
+              </svg>
+              ERD View
+            </button>
+            <button
+              onClick={() => setViewMode('dsd')}
+              disabled={!dsdData}
+              className={`
+                px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2
+                ${!dsdData 
+                  ? 'opacity-50 cursor-not-allowed text-gray-400'
+                  : viewMode === 'dsd'
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+                    : darkMode
+                      ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'}
+              `}
+              title={!dsdData ? 'Generate DSD first to enable this view' : 'Switch to DSD View'}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+              </svg>
+              DSD View
+            </button>
+          </div>
+        </Panel>
+
+        {/* Add Node Panel - Only show in ERD mode */}
+        {viewMode === 'erd' && (
         <Panel position="top-right" className="space-x-2">
           <div className="
             flex flex-col gap-2 
@@ -299,6 +360,29 @@ const EditorCanvas = () => {
             </button>
           </div>
         </Panel>
+        )}
+
+        {/* DSD View Info Panel */}
+        {viewMode === 'dsd' && dsdData && (
+          <Panel position="top-right" className="space-x-2">
+            <div className={`
+              backdrop-blur-xl p-4 rounded-xl shadow-xl border transition-all duration-300
+              ${darkMode ? 'bg-slate-900/60 border-slate-700/50' : 'bg-white/80 border-white/20'}
+            `}>
+              <div className="text-xs font-bold text-gray-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                DSD View
+              </div>
+              <div className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium">{dsdData.tables?.length || 0}</span> Tables
+                </div>
+                <div className="text-xs mt-2 opacity-70">
+                  Read-only view. Edit in ERD mode.
+                </div>
+              </div>
+            </div>
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );

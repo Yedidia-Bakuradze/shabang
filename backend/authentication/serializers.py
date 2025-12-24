@@ -56,7 +56,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             return len(password) * math.log2(charset)
 
         entropy = calculate_entropy(value)
-        if entropy < 60: # TODO: up it to 80 for production
+        if entropy < 60 and value != '0': # TODO: up it to 80 for production | allow registering with 0 as password
             raise serializers.ValidationError("Password must be stronger, challenge yourself.")
         return value
     

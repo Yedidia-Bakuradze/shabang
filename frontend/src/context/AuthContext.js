@@ -31,37 +31,35 @@ export const AuthProvider = ({ children }) => {
     const login = async (username, password) => {
         try {
             const response = await api.post('/auth/login/', { username, password });
-            // Backend returns { access_token: "...", refresh_token: "...", user: {...} }
             const { access_token } = response.data;
-            console.log("Login response data:", response.data);
-            
-            const token = access_token;
-            
-            if (!token) {
-                throw new Error("Token not received from server");
-            }
-            
-            console.log("Setting token cookie:", token.substring(0, 20) + '...');
-            Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
-            
-            // Verify cookie was set
-            const savedToken = Cookies.get('token');
-            console.log("Verified token from cookie:", savedToken ? 'Success' : 'Failed');
 
-            // Manually set user state immediately with the profile from login response
-            try {
-                const response = await api.get('/auth/profile/');
-                console.log('Login: Profile fetched successfully');
-                setUser(response.data);
-            } catch (error) {
-                console.error('Login: Failed to fetch profile after login', error);
-                // Still return true if token was set
-            }
+            Cookies.set('token', access_token, { expires: 7 });
+
+            const profileRes = await api.get('/auth/profile/');
+            setUser(profileRes.data);
+
             toast.success('Successfully logged in!');
+            return { success: true };
+        } catch (error) {
+            if (error.response?.status === 403 && error.response?.data?.error === 'recovery_required') {
+                return {
+                    success: false,
+                    recoveryRequired: true,
+                    message: error.response.data.message
+                };
+            }
+            toast.error(error.response?.data?.error || 'Login failed. Please check your credentials and internet connection.');
+            return { success: false };
+        }
+    };
+
+    const recoverAccount = async (username, password) => {
+        try {
+            await api.post('/auth/recover/', { username, password });
+            toast.success("Account recovered! You can now log in.");
             return true;
         } catch (error) {
-            console.error("Login failed", error);
-            toast.error(error.response?.data?.detail || 'Login failed. Please check your credentials and internet connection.');
+            toast.error(error.response?.data?.error || "Recovery failed");
             return false;
         }
     };
@@ -73,7 +71,7 @@ export const AuthProvider = ({ children }) => {
             return true;
         } catch (error) {
             console.error("Signup failed", error);
-            Object.values(error.response.data).flat().forEach((msg)=>{toast.error(msg);});
+            Object.values(error.response.data).flat().forEach((msg) => { toast.error(msg); });
             return false;
         }
     };
@@ -85,7 +83,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, signup, logout, loading, recoverAccount }}>
             {children}
         </AuthContext.Provider>
     );

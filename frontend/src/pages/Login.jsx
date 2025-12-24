@@ -5,16 +5,17 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import PasswordPeekAnimation from '../components/PasswordPeekAnimation';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [isTypingPassword, setIsTypingPassword] = useState(false);
-    const { login, user } = useAuth();
+    const { login, recoverAccount, user } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [showRecoverModal, setShowRecoverModal] = useState(false);
     const navigate = useNavigate();
 
-    // Redirect to dashboard if already logged in
     useEffect(() => {
         if (user) {
             navigate('/');
@@ -24,11 +25,21 @@ const Login = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        const success = await login(username, password);
-        if (success) {
-            // Navigation will happen automatically via useEffect when user state updates
-        } else {
+
+        const result = await login(username, password);
+
+        if (result.recoveryRequired) {
             setLoading(false);
+            setShowRecoverModal(true);
+        } else if (!result.success) {
+            setLoading(false);
+        }
+    };
+
+    const handleConfirmRecovery = async () => {
+        const success = await recoverAccount(username, password);
+        if (success) {
+            setShowRecoverModal(false);
         }
     };
 
@@ -40,18 +51,15 @@ const Login = () => {
 
             <div className="flex gap-8 items-center max-w-5xl w-full">
 
-                {/* Character on the left */}
                 <div className="hidden lg:block flex-shrink-0">
                     <PasswordPeekAnimation isTyping={isTypingPassword} />
                 </div>
 
-                {/* Login Form */}
                 <Card className="max-w-md w-full space-y-8 p-8 flex-grow 
                     bg-white dark:bg-gray-800 
                     text-gray-900 dark:text-gray-100">
 
                     <div>
-                        {/* Character on mobile */}
                         <div className="lg:hidden mb-6">
                             <PasswordPeekAnimation isTyping={isTypingPassword} />
                         </div>
@@ -113,9 +121,18 @@ const Login = () => {
                             </Button>
                         </div>
                     </form>
-
                 </Card>
             </div>
+
+            <ConfirmationModal
+                isOpen={showRecoverModal}
+                onClose={() => setShowRecoverModal(false)}
+                onConfirm={handleConfirmRecovery}
+                title="Recover Account?"
+                message="This account is scheduled for deletion. Would you like to restore it and log in?"
+                confirmText="Recover My Account"
+                isDanger={false}
+            />
         </div>
     );
 };

@@ -3,6 +3,32 @@ ReactFlow to ERD Parser
 Converts ReactFlow diagram format to ERD JSON format
 """
 
+# SQL type to logical type mapping
+SQL_TO_LOGICAL_TYPE = {
+    'VARCHAR': 'String',
+    'TEXT': 'Text',
+    'CHAR': 'String',
+    'INT': 'Integer',
+    'INTEGER': 'Integer',
+    'BIGINT': 'Long',
+    'SMALLINT': 'Integer',
+    'DECIMAL': 'Decimal',
+    'NUMERIC': 'Decimal',
+    'FLOAT': 'Float',
+    'DOUBLE': 'Float',
+    'REAL': 'Float',
+    'BOOLEAN': 'Boolean',
+    'BOOL': 'Boolean',
+    'DATE': 'Date',
+    'TIME': 'Time',
+    'TIMESTAMP': 'DateTime',
+    'DATETIME': 'DateTime',
+    'JSON': 'JSON',
+    'JSONB': 'JSON',
+    'BLOB': 'Binary',
+    'BYTEA': 'Binary',
+}
+
 
 def parse_reactflow_to_erd(reactflow_data, project_name="database"):
     """
@@ -21,53 +47,58 @@ def parse_reactflow_to_erd(reactflow_data, project_name="database"):
     nodes = reactflow_data.get('nodes', [])
     edges = reactflow_data.get('edges', [])
     
+    print(f"DEBUG PARSER: Processing {len(nodes)} nodes and {len(edges)} edges")
+    
     # Build maps of different node types
     entity_nodes = {}
-    attribute_nodes = {}
     relationship_nodes = {}
     
     for node in nodes:
         node_id = node.get('id')
         node_data = node.get('data', {})
-        node_type = node_data.get('nodeType')
         
-        if node_type == 'entity':
-            entity_nodes[node_id] = {
-                "name": node_data.get('label', 'Unknown'),
-                "description": node_data.get('description', ''),
-                "attributes": []
-            }
-        elif node_type == 'attribute':
-            attribute_nodes[node_id] = {
-                "name": node_data.get('label', 'unknown'),
-                "isPrimaryKey": node_data.get('isPrimaryKey', False),
-                "isRequired": node_data.get('isRequired', True),
-                "isUnique": node_data.get('isUnique', False),
-                "type": node_data.get('type', 'String')
-            }
-        elif node_type == 'relationship':
+        print(f"DEBUG PARSER: Node {node_id}: data={node_data}")
+        
+        # Check if it's a relationship (id starts with 'rel-' or has relationshipType)
+        if node_id.startswith('rel-') or 'relationshipType' in node_data:
             relationship_nodes[node_id] = {
                 "label": node_data.get('label', 'Relation'),
                 "relationshipType": node_data.get('relationshipType', '1:N'),
                 "entityConnections": node_data.get('entityConnections', [])
             }
-    
-    # Map attributes to their entities based on edges
-    for edge in edges:
-        source = edge.get('source')
-        target = edge.get('target')
-        
-        # Entity -> Attribute connection
-        if source in entity_nodes and target in attribute_nodes:
-            attr = attribute_nodes[target]
-            attr_data = {
-                "name": attr['name'],
-                "type": attr.get('type', 'String'),
-                "primary_key": attr.get('isPrimaryKey', False),
-                "nullable": not attr.get('isRequired', True),
-                "unique": attr.get('isUnique', False)
+        # Check if it's an entity (id starts with 'node-' and has attributes array)
+        elif node_id.startswith('node-') and 'attributes' in node_data:
+            entity_nodes[node_id] = {
+                "name": node_data.get('label', 'Unknown'),
+                "description": node_data.get('description', ''),
+                "attributes": []
             }
-            entity_nodes[source]['attributes'].append(attr_data)
+            
+            # Parse attributes from the entity's data
+            for attr in node_data.get('attributes', []):
+                # Convert SQL type to logical type
+                sql_type = attr.get('dataType', attr.get('type', 'VARCHAR'))
+                logical_type = SQL_TO_LOGICAL_TYPE.get(sql_type.upper(), 'String')
+                
+                attr_data = {
+                    "name": attr.get('name', attr.get('label', 'unknown')),
+                    "type": logical_type,
+                    "primary_key": attr.get('isKey', attr.get('isPrimaryKey', False)),
+                    "nullable": attr.get('allowNull', not attr.get('isRequired', True)),
+                    "unique": attr.get('isUnique', False)
+                }
+                entity_nodes[node_id]['attributes'].append(attr_data)
+            
+            # If no primary key found, add an auto-generated 'id' column
+            has_pk = any(attr.get('primary_key') for attr in entity_nodes[node_id]['attributes'])
+            if not has_pk:
+                entity_nodes[node_id]['attributes'].insert(0, {
+                    "name": "id",
+                    "type": "Integer",
+                    "primary_key": True,
+                    "nullable": False,
+                    "unique": True
+                })
     
     # Build primary key map (entity -> PK column name)
     entity_pk_map = {}

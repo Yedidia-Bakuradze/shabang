@@ -34,6 +34,12 @@ class GenerateDSDView(APIView):
             # Get ERD data (from request body or from project.entities)
             erd_data = req.data.get('entities') or project.entities
             
+            print(f"DEBUG: ERD data type: {type(erd_data)}")
+            print(f"DEBUG: ERD data keys: {erd_data.keys() if isinstance(erd_data, dict) else 'Not a dict'}")
+            if isinstance(erd_data, dict) and 'nodes' in erd_data:
+                print(f"DEBUG: Number of nodes: {len(erd_data.get('nodes', []))}")
+                print(f"DEBUG: Number of edges: {len(erd_data.get('edges', []))}")
+            
             if not erd_data:
                 return Response(
                     {"error": "No ERD data found. Please create some entities first."},
@@ -47,7 +53,9 @@ class GenerateDSDView(APIView):
             
             # Parse ReactFlow format to ERD JSON
             if isinstance(erd_data, dict) and 'nodes' in erd_data:
+                print(f"DEBUG: Parsing ReactFlow format...")
                 erd_json = parse_reactflow_to_erd(erd_data, project.name)
+                print(f"DEBUG: Parsed ERD JSON: {erd_json}")
                 if not erd_json:
                     return Response(
                         {"error": "Failed to parse diagram data"},
@@ -62,6 +70,14 @@ class GenerateDSDView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Check if there are any entities to transform
+            print(f"DEBUG: Entities in ERD JSON: {len(erd_json.get('entities', []))}")
+            if not erd_json.get('entities') or len(erd_json['entities']) == 0:
+                return Response(
+                    {"error": "No entities found. Please create some entities first."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             # Transform ERD to SQL
             result = transform_erd_to_sql(
                 erd_json,
@@ -69,6 +85,9 @@ class GenerateDSDView(APIView):
                 validate=validate,
                 include_drop=include_drop
             )
+            
+            print(f"DEBUG: Transform result success: {result.get('success')}")
+            print(f"DEBUG: Transform errors: {result.get('errors')}")
             
             if not result['success']:
                 return Response(

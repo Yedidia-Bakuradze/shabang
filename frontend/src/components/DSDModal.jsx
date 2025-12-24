@@ -82,10 +82,15 @@ const DSDModal = ({ isOpen, onClose, projectId, projectName }) => {
             <div className="flex-1 overflow-hidden">
               {error && !dsd ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-center p-8">
+                  <div className="text-center p-8 max-w-md">
                     <div className="text-red-600 text-6xl mb-4">⚠️</div>
                     <h3 className="text-xl font-bold text-red-600 mb-2">Transformation Failed</h3>
-                    <p className="text-gray-600">{error}</p>
+                    <p className="text-gray-600 mb-4">{error}</p>
+                    {error.includes('entities') && (
+                      <p className="text-sm text-gray-500 mb-4">
+                        💡 Please add some entities and attributes to your diagram first, then try again.
+                      </p>
+                    )}
                     <button
                       onClick={() => setShowPanel(true)}
                       className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

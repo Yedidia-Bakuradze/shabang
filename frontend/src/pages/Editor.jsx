@@ -8,6 +8,7 @@ import DSDModal from '../components/DSDModal';
 import api from '../api/axios';
 import { toast } from 'react-hot-toast';
 import useFlowStore from '../store/useFlowStore';
+import FlowPersistence from '../components/Flow/FlowPersistence';
 
 const Editor = () => {
     const { projectId } = useParams();
@@ -24,7 +25,7 @@ const Editor = () => {
                 const response = await api.get(`/project/${projectId}/`);
                 setProjectName(response.data.name);
                 setProjectId(projectId);
-                
+
                 // Always load canvas data (will clear if empty)
                 loadProjectData(response.data.entities);
             } catch (error) {
@@ -94,11 +95,10 @@ const Editor = () => {
                             <button
                                 onClick={() => handleSave(false)}
                                 disabled={saving || !hasUnsavedChanges}
-                                className={`px-4 py-2 rounded-md font-medium transition-colors duration-200 flex items-center gap-2 ${
-                                    saving || !hasUnsavedChanges
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        : 'bg-green-600 hover:bg-green-700 text-white'
-                                }`}
+                                className={`px-4 py-2 rounded-md font-medium transition-colors duration-200 flex items-center gap-2 ${saving || !hasUnsavedChanges
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                                    }`}
                             >
                                 {saving ? (
                                     <>
@@ -124,10 +124,11 @@ const Editor = () => {
                                     </>
                                 )}
                             </button>
+                            <FlowPersistence />
                         </div>
                     </div>
                     <EditorCanvas />
-                    
+
                     {/* DSD Button */}
                     <DSDButton onClick={() => setShowDSDModal(true)} />
                 </div>
@@ -137,10 +138,10 @@ const Editor = () => {
                     <PropertyPanel />
                 </div>
             </div>
-            
+
             {/* DSD Modal */}
             {showDSDModal && (
-                <DSDModal 
+                <DSDModal
                     isOpen={showDSDModal}
                     onClose={() => setShowDSDModal(false)}
                     projectId={projectId}

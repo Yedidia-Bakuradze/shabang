@@ -367,7 +367,7 @@ const useFlowStore = create((set, get) => ({
   loadProjectData: (entities) => {
     // Project Isolation: Always clear ALL state first, including DSD data
     // This ensures no data carries over from previous projects
-    
+
     if (entities && entities.nodes && entities.edges) {
       // Loading an existing project with data
       set({

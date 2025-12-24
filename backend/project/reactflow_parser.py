@@ -66,8 +66,8 @@ def parse_reactflow_to_erd(reactflow_data, project_name="database"):
                 "relationshipType": node_data.get('relationshipType', '1:N'),
                 "entityConnections": node_data.get('entityConnections', [])
             }
-        # Check if it's an entity (id starts with 'node-' and has attributes array)
-        elif node_id.startswith('node-') and 'attributes' in node_data:
+        # Check if it's an entity (has attributes array and is not a relationship)
+        elif 'attributes' in node_data and 'relationshipType' not in node_data:
             entity_nodes[node_id] = {
                 "name": node_data.get('label', 'Unknown'),
                 "description": node_data.get('description', ''),

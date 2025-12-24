@@ -102,6 +102,8 @@ class ERDToDSDTransformer:
         """
         self.dialect = dialect
         self.type_mapper = TypeMapper(dialect)
+        self.used_names = set()
+        self.entity_to_table_map = {}
     
     def transform(self, erd_json: Dict[str, Any]) -> DSDSchema:
         """
@@ -113,6 +115,10 @@ class ERDToDSDTransformer:
         Returns:
             DSDSchema object
         """
+        # Reset used names and mapping for each transformation
+        self.used_names = set()
+        self.entity_to_table_map = {}
+        
         schema_name = erd_json.get('name', 'database')
         description = erd_json.get('description', '')
         
@@ -145,8 +151,12 @@ class ERDToDSDTransformer:
         Returns:
             DSDTable object
         """
-        table_name = entity.get('name', 'unknown_table')
+        base_name = entity.get('name', 'unknown_table')
+        table_name = self._get_unique_table_name(base_name)
         description = entity.get('description', '')
+        
+        # Record the mapping from entity name to table name
+        self.entity_to_table_map[base_name] = table_name
         
         table = DSDTable(
             name=table_name,
@@ -251,25 +261,46 @@ class ERDToDSDTransformer:
             relationship: Relationship definition from ERD
             dsd: DSDSchema being built
         """
-        rel_type = relationship.get('type', '1:N')
-        from_entity = relationship.get('from_entity')
-        to_entity = relationship.get('to_entity')
+        # Map entity names to table names
+        from_entity = self.entity_to_table_map.get(relationship.get('from_entity'), relationship.get('from_entity'))
+        to_entity = self.entity_to_table_map.get(relationship.get('to_entity'), relationship.get('to_entity'))
         
+        # Update the relationship with mapped names
+        mapped_relationship = {
+            **relationship,
+            'from_entity': from_entity,
+            'to_entity': to_entity
+        }
+        
+        rel_type = relationship.get('type', '1:N')
         if rel_type == RelationshipType.ONE_TO_MANY or rel_type == '1:N':
-            self._add_one_to_many_fk(relationship, dsd)
+            self._add_one_to_many_fk(mapped_relationship, dsd)
         elif rel_type == RelationshipType.MANY_TO_ONE or rel_type == 'N:1':
-            self._add_many_to_one_fk(relationship, dsd)
+            self._add_many_to_one_fk(mapped_relationship, dsd)
         elif rel_type == RelationshipType.ONE_TO_ONE or rel_type == '1:1':
-            self._add_one_to_one_fk(relationship, dsd)
+            self._add_one_to_one_fk(mapped_relationship, dsd)
         elif rel_type == RelationshipType.MANY_TO_MANY or rel_type == 'N:M':
-            self._add_many_to_many_junction(relationship, dsd)
+            self._add_many_to_many_junction(mapped_relationship, dsd)
     
     def _add_one_to_many_fk(self, relationship: Dict[str, Any], dsd: DSDSchema):
         """Add foreign key for 1:N relationship"""
         from_entity = relationship.get('from_entity')
         to_entity = relationship.get('to_entity')
-        from_attr = relationship.get('from_attribute', 'id')
-        to_attr = relationship.get('to_attribute', f"{from_entity}_id")
+        
+        # Find the "one" side table to get PK info
+        from_table = self._find_table(dsd, from_entity)
+        if not from_table:
+            return
+            
+        # Get the PK column from the "one" side
+        from_attr = self._get_primary_key_column(from_table)
+        
+        # Get the PK column type for the FK
+        pk_column = next((c for c in from_table.columns if c.name == from_attr), None)
+        pk_type = pk_column.sql_type if pk_column else 'INTEGER'
+        
+        # FK column name in the "many" side table
+        to_attr = f"{from_entity}_id"
         
         # Find the "many" side table
         to_table = self._find_table(dsd, to_entity)
@@ -280,7 +311,7 @@ class ERDToDSDTransformer:
         if not self._column_exists(to_table, to_attr):
             fk_column = DSDColumn(
                 name=to_attr,
-                sql_type='INTEGER',
+                sql_type=pk_type,  # Match the PK type
                 nullable=False,
                 logical_type='Integer'
             )
@@ -323,7 +354,7 @@ class ERDToDSDTransformer:
         
         # Add unique constraint to make it 1:1
         to_entity = relationship.get('to_entity')
-        to_attr = relationship.get('to_attribute', f"{relationship.get('from_entity')}_id")
+        to_attr = f"{relationship.get('from_entity')}_id"
         to_table = self._find_table(dsd, to_entity)
         
         if to_table:
@@ -338,7 +369,14 @@ class ERDToDSDTransformer:
         """Create junction table for N:M relationship"""
         from_entity = relationship.get('from_entity')
         to_entity = relationship.get('to_entity')
-        junction_name = relationship.get('junction_table', f"{from_entity}_{to_entity}")
+        base_junction_name = relationship.get('junction_table', f"{from_entity}_{to_entity}")
+        junction_name = self._get_unique_table_name(base_junction_name)
+        
+        # Find PK columns
+        from_table = self._find_table(dsd, from_entity)
+        to_table = self._find_table(dsd, to_entity)
+        from_pk = self._get_primary_key_column(from_table) if from_table else 'id'
+        to_pk = self._get_primary_key_column(to_table) if to_table else 'id'
         
         # Create junction table
         junction_table = DSDTable(
@@ -346,10 +384,16 @@ class ERDToDSDTransformer:
             description=f"Junction table for {from_entity} and {to_entity}"
         )
         
+        # Get PK column types for matching FK types
+        from_pk_col = next((c for c in from_table.columns if c.name == from_pk), None) if from_table else None
+        to_pk_col = next((c for c in to_table.columns if c.name == to_pk), None) if to_table else None
+        from_pk_type = from_pk_col.sql_type if from_pk_col else 'INTEGER'
+        to_pk_type = to_pk_col.sql_type if to_pk_col else 'INTEGER'
+        
         # Add FK to first entity
         from_fk_col = DSDColumn(
             name=f"{from_entity}_id",
-            sql_type='INTEGER',
+            sql_type=from_pk_type,
             nullable=False,
             logical_type='Integer'
         )
@@ -358,7 +402,7 @@ class ERDToDSDTransformer:
         # Add FK to second entity
         to_fk_col = DSDColumn(
             name=f"{to_entity}_id",
-            sql_type='INTEGER',
+            sql_type=to_pk_type,
             nullable=False,
             logical_type='Integer'
         )
@@ -378,7 +422,7 @@ class ERDToDSDTransformer:
             type=ConstraintType.FOREIGN_KEY,
             columns=[f"{from_entity}_id"],
             referenced_table=from_entity,
-            referenced_columns=['id'],
+            referenced_columns=[from_pk],
             on_delete='CASCADE'
         )
         junction_table.constraints.append(fk1)
@@ -388,13 +432,38 @@ class ERDToDSDTransformer:
             type=ConstraintType.FOREIGN_KEY,
             columns=[f"{to_entity}_id"],
             referenced_table=to_entity,
-            referenced_columns=['id'],
+            referenced_columns=[to_pk],
             on_delete='CASCADE'
         )
         junction_table.constraints.append(fk2)
         
         dsd.tables.append(junction_table)
     
+    def _get_unique_table_name(self, base_name: str) -> str:
+        """
+        Get a unique table name, appending a number if necessary
+        
+        Args:
+            base_name: Base name for the table
+            
+        Returns:
+            Unique table name
+        """
+        name = base_name
+        counter = 1
+        while name in self.used_names:
+            name = f"{base_name}_{counter}"
+            counter += 1
+        self.used_names.add(name)
+        return name
+    
+    def _get_primary_key_column(self, table: DSDTable) -> str:
+        """Get the primary key column name of a table"""
+        for constraint in table.constraints:
+            if constraint.type == ConstraintType.PRIMARY_KEY:
+                return constraint.columns[0] if constraint.columns else 'id'
+        return 'id'  # fallback
+
     def _find_table(self, dsd: DSDSchema, table_name: str) -> Optional[DSDTable]:
         """Find a table by name in the DSD"""
         for table in dsd.tables:

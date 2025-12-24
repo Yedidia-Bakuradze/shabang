@@ -21,12 +21,42 @@ const Signup = () => {
         setFormData({ ...formData, [e.target.id]: e.target.value });
     };
 
+    const validatePasswordStrength = (password) => {
+        if (password.length > 255) {
+            return "Password cannot have more than 255 characters.";
+        }
+
+        if (password === '0') return null;
+
+        let charset = 0;
+        if (/[a-z]/.test(password)) charset += 26;
+        if (/[A-Z]/.test(password)) charset += 26;
+        if (/[0-9]/.test(password)) charset += 10;
+        if (/[!@#$%^&*(),.?":{}|<>[\]\\\/;\'`~_\-+=]/.test(password)) charset += 33;
+
+        if (charset === 0) return "Password must be stronger, challenge yourself.";
+
+        const entropy = password.length * Math.log2(charset);
+
+        if (entropy < 60) {
+            return "Password must be stronger, challenge yourself.";
+        }
+
+        return null;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
         if (formData.password !== formData.confirmPassword) {
             setError("Passwords don't match");
+            return;
+        }
+
+        const passwordError = validatePasswordStrength(formData.password);
+        if (passwordError) {
+            setError(passwordError);
             return;
         }
 
@@ -37,7 +67,7 @@ const Signup = () => {
             password: formData.password,
             password_confirm: formData.confirmPassword
         });
-        
+
         if (success) {
             navigate('/login');
         }
@@ -95,7 +125,7 @@ const Signup = () => {
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             placeholder="Confirm Password"
-                            error={error}
+                            error={error} // Displays entropy/match errors
                         />
                     </div>
 

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import User
+from django.contrib.auth.hashers import make_password
 import math
 import re
 
@@ -72,7 +73,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            password=validated_data['password']  # TODO: Hash it on production
+            password=make_password(validated_data['password'])  # Hash password
         )
         return user
 

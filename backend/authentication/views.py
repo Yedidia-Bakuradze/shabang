@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.contrib.auth.hashers import check_password
 from .models import User
 from .tokens import CustomRefreshToken, CustomAccessToken
 from .serializers import (
@@ -51,8 +52,8 @@ class UserLoginView(APIView):
             try:
                 user = User.objects.get(username=username)
                 
-                # Simple password check (in production, use hash comparison)
-                if user.password != password:
+                # Check password using Django's hash comparison
+                if not check_password(password, user.password):
                     return Response(
                         {"error": "Invalid username or password"},
                         status=status.HTTP_401_UNAUTHORIZED

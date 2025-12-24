@@ -197,12 +197,30 @@ class UserRecoverView(APIView):
         password = request.data.get('password')
         
         try:
-            user = User.objects.get(username=username, password=password)
+            user = User.objects.get(username=username)
+            
+            if not check_password(password, user.password):
+                return Response(
+                    {"error": "Invalid username or password"},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            
             if user.deleted_at:
                 user.deleted_at = None
                 user.is_active = True
                 user.save()
-                return Response({"message": "Account recovered successfully."}, status=status.HTTP_200_OK)
-            return Response({"error": "No recovery needed."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"message": "Account recovered successfully. You can now log in."}, 
+                    status=status.HTTP_200_OK
+                )
+            
+            return Response(
+                {"error": "No recovery needed."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
         except User.DoesNotExist:
-            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(
+                {"error": "Invalid username or password"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )

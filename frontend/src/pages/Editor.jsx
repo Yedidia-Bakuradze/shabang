@@ -9,6 +9,7 @@ import api from '../api/axios';
 import { toast } from 'react-hot-toast';
 import useFlowStore from '../store/useFlowStore';
 import FlowPersistence from '../components/Flow/FlowPersistence';
+import useDSDTransform from '../hooks/useDSDTransform';
 
 const Editor = () => {
     const { projectId } = useParams();
@@ -16,7 +17,8 @@ const Editor = () => {
     const [saving, setSaving] = useState(false);
     const [projectName, setProjectName] = useState('');
     const [showDSDModal, setShowDSDModal] = useState(false);
-    const { loadProjectData, getCanvasData, markAsSaved, setProjectId, hasUnsavedChanges } = useFlowStore();
+    const { loadProjectData, getCanvasData, markAsSaved, setProjectId, hasUnsavedChanges, setDSDData } = useFlowStore();
+    const { transformERDtoDSD } = useDSDTransform();
 
     // Load project data
     useEffect(() => {
@@ -54,12 +56,37 @@ const Editor = () => {
         setSaving(true);
         try {
             const canvasData = getCanvasData();
+            
+            // Step 1: Save ERD data
             await api.put(`/project/${projectId}/`, {
                 entities: canvasData
             });
+            
+            // Step 2: Automatically generate DSD from current ERD
+            try {
+                const dsdResult = await transformERDtoDSD(projectId, {
+                    dialect: 'postgresql',
+                    validate: true,
+                    include_drop: false,
+                    entities: canvasData  // Send current canvas data
+                });
+                
+                // Step 3: Store DSD data in the store for immediate DSD tab access
+                if (dsdResult?.dsd) {
+                    setDSDData(dsdResult.dsd);
+                }
+                
+                // Step 4: SQL is already generated and saved by the backend
+                // The backend returns it in dsdResult.sql
+                
+            } catch (dsdError) {
+                console.warn('DSD generation failed during save:', dsdError);
+                // Don't fail the entire save if DSD generation fails
+            }
+            
             markAsSaved();
             if (!isAutoSave) {
-                toast.success('Project saved successfully!');
+                toast.success('Project saved! DSD and SQL updated.');
             }
         } catch (error) {
             console.error('Failed to save project:', error);

@@ -20,7 +20,212 @@ const useFlowStore = create((set, get) => ({
   dsdEdges: [],    // React Flow edges for DSD view (FK relationships)
 
   setViewMode: (mode) => {
+    // When switching to DSD mode, only show existing DSD data
+    // Don't auto-generate - DSD should only be created on Save
+    if (mode === 'dsd') {
+      const dsdData = get().dsdData;
+      
+      // If no DSD data exists, keep it empty until user saves
+      if (!dsdData) {
+        set({ dsdNodes: [], dsdEdges: [] });
+      }
+    }
     set({ viewMode: mode });
+  },
+
+  /**
+   * Regenerate DSD nodes and edges from current ERD state
+   * This transforms the ERD canvas into a DSD representation client-side
+   */
+  regenerateDSDFromCurrentERD: () => {
+    const currentNodes = get().nodes;
+    const currentEdges = get().edges;
+    
+    // Extract entities from current ERD
+    const entities = currentNodes.filter(n => n.type === 'entityNode');
+    const relationships = currentNodes.filter(n => n.type === 'relationshipNode');
+    
+    if (entities.length === 0) {
+      set({ dsdData: null, dsdNodes: [], dsdEdges: [] });
+      return;
+    }
+    
+    // Build DSD representation
+    const dsdTables = [];
+    const tablePositions = {};
+    
+    // Layout constants
+    const SPACING_X = 350;
+    const SPACING_Y = 300;
+    const COLS = 3;
+    
+    // Convert entities to DSD tables
+    entities.forEach((entity, index) => {
+      const tableName = entity.data.label || 'Untitled';
+      const attributes = entity.data.attributes || [];
+      
+      // Use entity's current position if it has dsdPosition, otherwise calculate grid position
+      let position;
+      if (entity.data.dsdPosition) {
+        position = entity.data.dsdPosition;
+      } else {
+        const row = Math.floor(index / COLS);
+        const col = index % COLS;
+        position = {
+          x: 100 + col * SPACING_X,
+          y: 100 + row * SPACING_Y
+        };
+      }
+      
+      tablePositions[tableName] = position;
+      
+      // Build columns from attributes
+      const columns = attributes.map(attr => ({
+        name: attr.name,
+        sql_type: attr.dataType || 'VARCHAR(255)',
+        nullable: attr.allowNull !== false,
+        isPrimaryKey: attr.isKey === true,
+        isForeignKey: attr.isForeignKey === true,
+        fkReference: attr.isForeignKey ? {
+          referencedTable: attr.referencedEntity,
+          referencedColumn: `${attr.referencedEntity?.toLowerCase()}_id`
+        } : undefined
+      }));
+      
+      // Build constraints
+      const constraints = [];
+      const pkColumns = columns.filter(c => c.isPrimaryKey).map(c => c.name);
+      if (pkColumns.length > 0) {
+        constraints.push({
+          type: 'PRIMARY KEY',
+          columns: pkColumns
+        });
+      }
+      
+      // Add FK constraints
+      columns.forEach(col => {
+        if (col.isForeignKey && col.fkReference) {
+          constraints.push({
+            type: 'FOREIGN KEY',
+            columns: [col.name],
+            referenced_table: col.fkReference.referencedTable,
+            referenced_columns: [col.fkReference.referencedColumn]
+          });
+        }
+      });
+      
+      dsdTables.push({
+        name: tableName,
+        description: entity.data.description || '',
+        columns: columns,
+        constraints: constraints,
+        indexes: []
+      });
+    });
+    
+    // Handle M:N relationships - create junction tables
+    relationships.forEach(rel => {
+      if (rel.data.relationshipType === 'M:N') {
+        const entityConnections = rel.data.entityConnections || [];
+        if (entityConnections.length === 2) {
+          const entity1 = entities.find(e => e.id === entityConnections[0]);
+          const entity2 = entities.find(e => e.id === entityConnections[1]);
+          
+          if (entity1 && entity2) {
+            const entity1Name = entity1.data.label;
+            const entity2Name = entity2.data.label;
+            const junctionTableName = `${entity1Name}_${entity2Name}`;
+            
+            // Position junction table between the two entities
+            const entity1Pos = tablePositions[entity1Name] || { x: 100, y: 100 };
+            const entity2Pos = tablePositions[entity2Name] || { x: 100, y: 100 };
+            const junctionPos = {
+              x: (entity1Pos.x + entity2Pos.x) / 2,
+              y: (entity1Pos.y + entity2Pos.y) / 2 + 150
+            };
+            
+            tablePositions[junctionTableName] = junctionPos;
+            
+            // Build junction table columns
+            const junctionColumns = [
+              {
+                name: `${entity1Name.toLowerCase()}_id`,
+                sql_type: 'INTEGER',
+                nullable: false,
+                isPrimaryKey: true,
+                isForeignKey: true,
+                fkReference: {
+                  referencedTable: entity1Name,
+                  referencedColumn: `${entity1Name.toLowerCase()}_id`
+                }
+              },
+              {
+                name: `${entity2Name.toLowerCase()}_id`,
+                sql_type: 'INTEGER',
+                nullable: false,
+                isPrimaryKey: true,
+                isForeignKey: true,
+                fkReference: {
+                  referencedTable: entity2Name,
+                  referencedColumn: `${entity2Name.toLowerCase()}_id`
+                }
+              }
+            ];
+            
+            // Add relationship attributes to junction table
+            const relAttributes = rel.data.attributes || [];
+            relAttributes.forEach(attr => {
+              junctionColumns.push({
+                name: attr.name,
+                sql_type: attr.dataType || 'VARCHAR(255)',
+                nullable: attr.allowNull !== false,
+                isPrimaryKey: false,
+                isForeignKey: false
+              });
+            });
+            
+            dsdTables.push({
+              name: junctionTableName,
+              description: `Junction table for ${entity1Name} - ${entity2Name} relationship`,
+              columns: junctionColumns,
+              constraints: [
+                {
+                  type: 'PRIMARY KEY',
+                  columns: [`${entity1Name.toLowerCase()}_id`, `${entity2Name.toLowerCase()}_id`]
+                },
+                {
+                  type: 'FOREIGN KEY',
+                  columns: [`${entity1Name.toLowerCase()}_id`],
+                  referenced_table: entity1Name,
+                  referenced_columns: [`${entity1Name.toLowerCase()}_id`]
+                },
+                {
+                  type: 'FOREIGN KEY',
+                  columns: [`${entity2Name.toLowerCase()}_id`],
+                  referenced_table: entity2Name,
+                  referenced_columns: [`${entity2Name.toLowerCase()}_id`]
+                }
+              ],
+              indexes: []
+            });
+          }
+        }
+      }
+    });
+    
+    // Create DSD data structure
+    const dsd = {
+      tables: dsdTables,
+      metadata: {
+        generated_at: new Date().toISOString(),
+        source: 'client-side-transformation'
+      }
+    };
+    
+    // Generate React Flow nodes and edges
+    const { nodes: dsdNodes, edges: dsdEdges } = get().generateDSDNodesAndEdges(dsd);
+    
+    set({ dsdData: dsd, dsdNodes, dsdEdges });
   },
 
   setDSDData: (dsd) => {
@@ -62,10 +267,10 @@ const useFlowStore = create((set, get) => ({
           constraint.columns?.forEach(col => pkColumns.add(col));
         }
         if (constraint.type === 'FOREIGN KEY') {
-          constraint.columns?.forEach(col => {
+          constraint.columns?.forEach((col, idx) => {
             fkColumns[col] = {
               referencedTable: constraint.referenced_table,
-              referencedColumn: constraint.referenced_columns?.[0]
+              referencedColumn: constraint.referenced_columns?.[idx] || constraint.referenced_columns?.[0]
             };
           });
         }
@@ -92,28 +297,48 @@ const useFlowStore = create((set, get) => ({
       });
     });
     
-    // Create FK edges
+    // Create FK edges - iterate through all tables and their FK constraints
     dsd.tables.forEach(table => {
+      const sourceTableName = table.name;
+      
       table.constraints?.forEach(constraint => {
         if (constraint.type === 'FOREIGN KEY' && constraint.referenced_table) {
-          const sourceTableName = table.name;
           const targetTableName = constraint.referenced_table;
-          const fkColumn = constraint.columns?.[0];
-          const pkColumn = constraint.referenced_columns?.[0];
+          const fkColumns = constraint.columns || [];
+          const referencedColumns = constraint.referenced_columns || [];
           
-          if (tablePositions[targetTableName]) {
-            edges.push({
-              id: `dsd-edge-${sourceTableName}-${targetTableName}-${fkColumn}`,
-              source: `dsd-${sourceTableName}`,
-              target: `dsd-${targetTableName}`,
-              sourceHandle: `${fkColumn}-right`,
-              targetHandle: `${pkColumn}-left`,
-              type: 'smoothstep',
-              animated: true,
-              style: { stroke: '#6366f1', strokeWidth: 2 },
-              label: `${fkColumn} → ${pkColumn}`,
-              labelStyle: { fontSize: 10, fill: '#6366f1' },
-              labelBgStyle: { fill: 'white', fillOpacity: 0.8 }
+          // Check if both tables exist
+          const sourceExists = nodes.some(n => n.id === `dsd-${sourceTableName}`);
+          const targetExists = nodes.some(n => n.id === `dsd-${targetTableName}`);
+          
+          if (sourceExists && targetExists) {
+            // Create an edge for each FK column (usually just one, but could be composite)
+            fkColumns.forEach((fkColumn, idx) => {
+              const pkColumn = referencedColumns[idx] || referencedColumns[0] || 'id';
+              
+              // Theme-aware edge styling
+              // Use markerEnd with type to let React Flow handle the arrow
+              edges.push({
+                id: `dsd-edge-${sourceTableName}-${targetTableName}-${fkColumn}-${idx}`,
+                source: `dsd-${sourceTableName}`,
+                target: `dsd-${targetTableName}`,
+                type: 'smoothstep',
+                animated: false,
+                style: { 
+                  strokeWidth: 2
+                },
+                className: 'dsd-fk-edge',  // Use CSS class for theme-aware styling
+                markerEnd: {
+                  type: 'arrowclosed'
+                },
+                label: `FK: ${fkColumn}`,
+                labelStyle: { 
+                  fontSize: 11,
+                  fontWeight: 600
+                },
+                labelClassName: 'dsd-fk-label',  // Use CSS class for theme-aware styling
+                labelBgClassName: 'dsd-fk-label-bg'
+              });
             });
           }
         }
@@ -140,19 +365,34 @@ const useFlowStore = create((set, get) => ({
   },
 
   loadProjectData: (entities) => {
-    // Always reset the canvas first, then load data if it exists
+    // Project Isolation: Always clear ALL state first, including DSD data
+    // This ensures no data carries over from previous projects
+    
     if (entities && entities.nodes && entities.edges) {
+      // Loading an existing project with data
       set({
         nodes: entities.nodes,
         edges: entities.edges,
-        hasUnsavedChanges: false
+        hasUnsavedChanges: false,
+        selectedNodeId: null,
+        // Clear DSD state - will be regenerated when switching to DSD view
+        dsdData: null,
+        dsdNodes: [],
+        dsdEdges: [],
+        viewMode: 'erd'  // Always start in ERD mode
       });
     } else {
-      // Empty/new project - clear the canvas
+      // Empty/new project - clear the canvas completely
       set({
         nodes: [],
         edges: [],
-        hasUnsavedChanges: false
+        hasUnsavedChanges: false,
+        selectedNodeId: null,
+        // Clear DSD state
+        dsdData: null,
+        dsdNodes: [],
+        dsdEdges: [],
+        viewMode: 'erd'
       });
     }
   },
@@ -170,6 +410,39 @@ const useFlowStore = create((set, get) => ({
 
   onNodesChange: (changes) => {
     const currentNodes = get().nodes;
+    const viewMode = get().viewMode;
+    const dsdNodes = get().dsdNodes;
+    
+    // If we're in DSD mode, handle position changes for DSD nodes
+    if (viewMode === 'dsd') {
+      const updatedDsdNodes = applyNodeChanges(changes, dsdNodes);
+      
+      // Save position updates back to ERD entities for persistence
+      changes.forEach(change => {
+        if (change.type === 'position' && change.position && !change.dragging) {
+          const dsdNode = dsdNodes.find(n => n.id === change.id);
+          if (dsdNode && dsdNode.data.tableName) {
+            // Find corresponding ERD entity and save DSD position
+            const tableName = dsdNode.data.tableName;
+            const erdEntity = currentNodes.find(n => 
+              n.type === 'entityNode' && n.data.label === tableName
+            );
+            
+            if (erdEntity) {
+              const updatedNodes = currentNodes.map(n => 
+                n.id === erdEntity.id 
+                  ? { ...n, data: { ...n.data, dsdPosition: change.position } }
+                  : n
+              );
+              set({ nodes: updatedNodes, hasUnsavedChanges: true });
+            }
+          }
+        }
+      });
+      
+      set({ dsdNodes: updatedDsdNodes });
+      return;
+    }
 
     // Check for deletions to sync with Data
     changes.forEach(change => {

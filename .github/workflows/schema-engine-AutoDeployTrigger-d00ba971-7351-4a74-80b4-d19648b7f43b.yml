@@ -1,0 +1,49 @@
+name: Trigger auto deployment for schema-engine
+
+# When this action will be executed
+on:
+  # Automatically trigger it when detected changes in repo
+  push:
+    branches: 
+      [ main ]
+    paths:
+    - '**'
+    - '.github/workflows/schema-engine-AutoDeployTrigger-d00ba971-7351-4a74-80b4-d19648b7f43b.yml'
+
+  # Allow manual trigger 
+  workflow_dispatch:      
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write #This is required for requesting the OIDC JWT Token
+      contents: read #Required when GH token is used to authenticate with private repo
+
+    steps:
+      - name: Checkout to the branch
+        uses: actions/checkout@v2
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.SCHEMAENGINE_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.SCHEMAENGINE_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.SCHEMAENGINE_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push container image to registry
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          appSourcePath: ${{ github.workspace }}/schema-engine
+          _dockerfilePathKey_: _dockerfilePath_
+          _targetLabelKey_: _targetLabel_
+          registryUrl: shabangacr.azurecr.io
+          registryUsername: ${{ secrets.SCHEMAENGINE_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.SCHEMAENGINE_REGISTRY_PASSWORD }}
+          containerAppName: schema-engine
+          resourceGroup: rg_shabang
+          imageToBuild: shabangacr.azurecr.io/schema-engine:${{ github.sha }}
+          _buildArgumentsKey_: |
+            _buildArgumentsValues_
+
+

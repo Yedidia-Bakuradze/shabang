@@ -21,7 +21,7 @@ services:
       - DB_PASS=${DB_PASS}
       - DB_HOST=${DB_HOST}
       - SECRET_KEY=${SECRET_KEY}
-      - SCHEMA_ENGINE_URL=http://schema-engine:8001
+      - SCHEMA_ENGINE_URL=${SCHEMA_ENGINE_URL}
     depends_on:
       - db
 

@@ -50,6 +50,206 @@ const useFlowStore = create((set, get) => ({
     }
   },
 
+  /**
+   * Apply normalized DSD tables to the ERD canvas
+   * Converts DSD tables back to ERD entities with attributes
+   * @param {object} normalizedResult - The normalization result with tables
+   */
+  applyNormalizedToERD: (normalizedResult) => {
+    if (!normalizedResult || !normalizedResult.tables) return;
+
+    const newNodes = [];
+    const newEdges = [];
+    
+    // Layout constants
+    const ENTITY_SPACING_X = 400;
+    const ENTITY_SPACING_Y = 350;
+    const COLS = 3;
+    const ATTR_OFFSET_Y = 120;
+    const ATTR_SPACING_X = 150;
+    
+    // Track table positions for FK edge creation
+    const tablePositions = {};
+    const tableNodeIds = {};
+    
+    // Create entity nodes for each normalized table
+    normalizedResult.tables.forEach((table, tableIndex) => {
+      const row = Math.floor(tableIndex / COLS);
+      const col = tableIndex % COLS;
+      const entityX = 100 + col * ENTITY_SPACING_X;
+      const entityY = 100 + row * ENTITY_SPACING_Y;
+      
+      const entityId = `ent-${Date.now()}-${tableIndex}`;
+      tableNodeIds[table.name] = entityId;
+      tablePositions[table.name] = { x: entityX, y: entityY };
+      
+      // Find primary key columns
+      const pkColumns = new Set();
+      table.constraints?.forEach(constraint => {
+        if (constraint.type === 'PRIMARY KEY') {
+          constraint.columns?.forEach(col => pkColumns.add(col));
+        }
+      });
+      
+      // Create attribute nodes and collect attribute data
+      const attributeData = [];
+      const attributeNodes = [];
+      const attributeEdges = [];
+      
+      table.columns?.forEach((column, colIndex) => {
+        const attrId = `attr-${entityId}-${colIndex}`;
+        const attrRow = Math.floor(colIndex / 3);
+        const attrCol = colIndex % 3;
+        const attrX = entityX + (attrCol - 1) * ATTR_SPACING_X;
+        const attrY = entityY + ATTR_OFFSET_Y + attrRow * 80;
+        
+        const isPK = pkColumns.has(column.name);
+        
+        // Map SQL type to data type for display
+        const dataType = column.sql_type || 'VARCHAR';
+        
+        // Create attribute node
+        attributeNodes.push({
+          id: attrId,
+          type: 'attributeNode',
+          position: { x: attrX, y: attrY },
+          data: {
+            label: column.name,
+            isKey: isPK,
+            dataType: dataType,
+            allowNull: column.nullable !== false,
+            isUnique: column.unique || false
+          }
+        });
+        
+        // Create edge from entity to attribute
+        attributeEdges.push({
+          id: `edge-${entityId}-${attrId}`,
+          source: entityId,
+          sourceHandle: 'handle-attributes',
+          target: attrId,
+          type: 'erdEdge',
+          data: { edgeType: 'attribute' }
+        });
+        
+        // Store attribute reference in entity data
+        attributeData.push({
+          id: attrId,
+          name: column.name,
+          isKey: isPK,
+          dataType: dataType,
+          allowNull: column.nullable !== false,
+          isUnique: column.unique || false
+        });
+      });
+      
+      // Create entity node
+      const entityNode = {
+        id: entityId,
+        type: 'entityNode',
+        position: { x: entityX, y: entityY },
+        data: {
+          label: table.name,
+          description: table.description || '',
+          attributes: attributeData
+        }
+      };
+      
+      newNodes.push(entityNode);
+      newNodes.push(...attributeNodes);
+      newEdges.push(...attributeEdges);
+    });
+    
+    // Create relationship nodes for foreign keys
+    const processedFKs = new Set();
+    
+    normalizedResult.tables.forEach((table, tableIndex) => {
+      const sourceEntityId = tableNodeIds[table.name];
+      
+      table.constraints?.forEach(constraint => {
+        if (constraint.type === 'FOREIGN KEY' && constraint.referenced_table) {
+          const targetEntityId = tableNodeIds[constraint.referenced_table];
+          
+          if (targetEntityId && sourceEntityId !== targetEntityId) {
+            const fkKey = `${sourceEntityId}-${targetEntityId}`;
+            
+            // Avoid duplicate relationships
+            if (!processedFKs.has(fkKey) && !processedFKs.has(`${targetEntityId}-${sourceEntityId}`)) {
+              processedFKs.add(fkKey);
+              
+              const sourcePos = tablePositions[table.name];
+              const targetPos = tablePositions[constraint.referenced_table];
+              
+              // Calculate midpoint for relationship diamond
+              const relX = (sourcePos.x + targetPos.x) / 2;
+              const relY = (sourcePos.y + targetPos.y) / 2;
+              
+              const relId = `rel-${Date.now()}-${tableIndex}-${Math.random().toString(36).substr(2, 5)}`;
+              
+              // Create relationship node
+              const relNode = {
+                id: relId,
+                type: 'relationshipNode',
+                position: { x: relX, y: relY - 50 },
+                data: {
+                  label: constraint.name || `FK_${table.name}`,
+                  relationshipType: '1:N',
+                  entityConnections: [targetEntityId, sourceEntityId],
+                  attributes: []
+                }
+              };
+              
+              // Create edges connecting entities to relationship
+              // Match the edge structure from onConnect for entity-to-entity connections
+              const relEdge1 = {
+                id: `edge-${targetEntityId}-${relId}`,
+                source: targetEntityId,
+                sourceHandle: 'handle-right',
+                target: relId,
+                type: 'erdEdge',
+                label: '1',
+                data: { 
+                  edgeType: 'relationship',
+                  sourceCardinality: 'ONE',
+                  targetCardinality: 'ONE'
+                }
+              };
+              
+              const relEdge2 = {
+                id: `edge-${relId}-${sourceEntityId}`,
+                source: relId,
+                target: sourceEntityId,
+                targetHandle: 'handle-left',
+                type: 'erdEdge',
+                label: 'N',
+                data: { 
+                  edgeType: 'relationship',
+                  sourceCardinality: 'MANY',
+                  targetCardinality: 'ONE'
+                }
+              };
+              
+              newNodes.push(relNode);
+              newEdges.push(relEdge1, relEdge2);
+            }
+          }
+        }
+      });
+    });
+    
+    // Update the store with new ERD nodes and edges
+    set({
+      nodes: newNodes,
+      edges: newEdges,
+      pendingNormalization: null,
+      normalizedDSD: null,
+      hasUnsavedChanges: true,
+      viewMode: 'erd'
+    });
+    
+    return { success: true, entityCount: normalizedResult.tables.length };
+  },
+
   cancelNormalization: () => {
     set({ pendingNormalization: null, normalizedDSD: null });
   },
@@ -681,7 +881,7 @@ const useFlowStore = create((set, get) => ({
     const relNode = get().nodes.find(n => n.id === relationshipId);
     if (!relNode || relNode.data.entityConnections?.includes(entityId)) return;
     const newEdgeId = `edge-${entityId}-${relationshipId}-${Date.now()}`;
-    const newEdge = { id: newEdgeId, source: entityId, sourceHandle: 'handle-relations-right', target: relationshipId, type: 'erdEdge', label: 'N', data: { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE', role: null } };
+    const newEdge = { id: newEdgeId, source: entityId, sourceHandle: 'handle-right', target: relationshipId, type: 'erdEdge', label: 'N', data: { edgeType: 'relationship', sourceCardinality: 'MANY', targetCardinality: 'ONE', role: null } };
     set({
       nodes: get().nodes.map(n => n.id === relationshipId ? { ...n, data: { ...n.data, entityConnections: [...(n.data.entityConnections || []), entityId] } } : n),
       edges: [...get().edges, newEdge],

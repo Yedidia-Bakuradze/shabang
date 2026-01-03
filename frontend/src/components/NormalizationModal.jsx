@@ -16,8 +16,9 @@ const NormalizationModal = ({ isOpen, onClose, projectId, projectName }) => {
   const [normalizationType, setNormalizationType] = useState('BCNF');
   const [functionalDependencies, setFunctionalDependencies] = useState([]);
   const [fdValidationErrors, setFdValidationErrors] = useState([]);
+  const [applyMode, setApplyMode] = useState('erd'); // 'erd' | 'dsd'
   
-  const { getCanvasData, setDSDData, applyNormalizedSchema } = useFlowStore();
+  const { getCanvasData, setDSDData, applyNormalizedToERD } = useFlowStore();
   const { 
     normalizeSchema, 
     isLoading, 
@@ -106,13 +107,22 @@ const NormalizationModal = ({ isOpen, onClose, projectId, projectName }) => {
 
   const handleApprove = () => {
     if (normalized) {
-      // Store the normalized DSD in the flow store
-      setDSDData({
-        name: projectName || 'normalized_schema',
-        tables: normalized.tables
-      });
-      
-      toast.success('Normalized schema applied! View it in DSD mode.');
+      if (applyMode === 'erd') {
+        // Apply normalized tables as new ERD entities
+        const result = applyNormalizedToERD(normalized);
+        if (result?.success) {
+          toast.success(`Normalized schema applied to ERD! Created ${result.entityCount} entities.`);
+        } else {
+          toast.error('Failed to apply normalized schema to ERD');
+        }
+      } else {
+        // Store the normalized DSD in the flow store (DSD mode only)
+        setDSDData({
+          name: projectName || 'normalized_schema',
+          tables: normalized.tables
+        });
+        toast.success('Normalized schema applied! View it in DSD mode.');
+      }
       onClose();
     }
   };
@@ -295,6 +305,8 @@ const NormalizationModal = ({ isOpen, onClose, projectId, projectName }) => {
                 onApprove={handleApprove}
                 onCancel={handleCancel}
                 isLoading={isLoading}
+                applyMode={applyMode}
+                onApplyModeChange={setApplyMode}
               />
             </div>
           </div>

@@ -7,7 +7,9 @@ import {
   ArrowRightIcon,
   TableCellsIcon,
   KeyIcon,
-  LinkIcon
+  LinkIcon,
+  RectangleGroupIcon,
+  CircleStackIcon
 } from '@heroicons/react/24/outline';
 
 /**
@@ -24,7 +26,9 @@ const NormalizationViewer = ({
   isAlreadyNormalized,
   onApprove,
   onCancel,
-  isLoading = false
+  isLoading = false,
+  applyMode = 'erd',
+  onApplyModeChange
 }) => {
   const [viewMode, setViewMode] = useState('comparison'); // 'comparison' | 'original' | 'normalized'
   const [expandedTables, setExpandedTables] = useState(new Set());
@@ -331,35 +335,74 @@ const NormalizationViewer = ({
 
       {/* Action Buttons */}
       {!isAlreadyNormalized && changes.length > 0 && (
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-end gap-3">
-          <button
-            onClick={onCancel}
-            disabled={isLoading}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 
-                       border border-gray-300 dark:border-gray-600 rounded-lg 
-                       hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onApprove}
-            disabled={isLoading}
-            className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white 
-                       rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all
-                       flex items-center gap-2 font-medium shadow-lg"
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Applying...
-              </>
-            ) : (
-              <>
-                <CheckCircleIcon className="w-5 h-5" />
-                Apply Normalization
-              </>
-            )}
-          </button>
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          {/* Apply Mode Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Apply changes to:
+            </label>
+            <div className="flex gap-3">
+              <button
+                onClick={() => onApplyModeChange?.('erd')}
+                className={`flex-1 p-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${
+                  applyMode === 'erd'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <RectangleGroupIcon className="w-5 h-5" />
+                <div className="text-left">
+                  <div className="font-medium">ERD Diagram</div>
+                  <div className="text-xs opacity-75">Replace canvas with normalized entities</div>
+                </div>
+              </button>
+              <button
+                onClick={() => onApplyModeChange?.('dsd')}
+                className={`flex-1 p-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${
+                  applyMode === 'dsd'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <CircleStackIcon className="w-5 h-5" />
+                <div className="text-left">
+                  <div className="font-medium">DSD Only</div>
+                  <div className="text-xs opacity-75">Update DSD view, keep ERD unchanged</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={onCancel}
+              disabled={isLoading}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 
+                         border border-gray-300 dark:border-gray-600 rounded-lg 
+                         hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onApprove}
+              disabled={isLoading}
+              className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white 
+                         rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all
+                         flex items-center gap-2 font-medium shadow-lg"
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Applying...
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="w-5 h-5" />
+                  Apply to {applyMode === 'erd' ? 'ERD' : 'DSD'}
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 

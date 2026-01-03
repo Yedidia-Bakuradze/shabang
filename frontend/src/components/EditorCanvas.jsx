@@ -197,7 +197,64 @@ const EditorCanvas = () => {
         }
         .react-flow__node.selected {
           z-index: 3 !important;
-        }
+        }        
+        /* Theme-aware DSD Edge Styling */
+        ${darkMode ? `
+          /* Dark Mode: Light edges with low opacity */
+          .dsd-fk-edge {
+            stroke: #e2e8f0 !important;
+            opacity: 0.7;
+          }
+          .dsd-fk-edge path {
+            stroke: #e2e8f0 !important;
+          }
+          .dsd-fk-edge polygon {
+            fill: #e2e8f0 !important;
+            stroke: #e2e8f0 !important;
+          }
+          .react-flow__edge.dsd-fk-edge .react-flow__edge-path {
+            stroke: #e2e8f0 !important;
+          }
+          .react-flow__edge.dsd-fk-edge marker path,
+          .react-flow__edge.dsd-fk-edge marker polygon {
+            fill: #e2e8f0 !important;
+            stroke: #e2e8f0 !important;
+          }
+          .dsd-fk-label {
+            fill: #e2e8f0 !important;
+          }
+          .dsd-fk-label-bg {
+            fill: rgba(15, 23, 42, 0.9) !important;
+          }
+        ` : `
+          /* Light Mode: Dark edges */
+          .dsd-fk-edge {
+            stroke: #1e293b !important;
+            opacity: 1;
+          }
+          .dsd-fk-edge path {
+            stroke: #1e293b !important;
+          }
+          .dsd-fk-edge polygon {
+            fill: #1e293b !important;
+            stroke: #1e293b !important;
+          }
+          .react-flow__edge.dsd-fk-edge .react-flow__edge-path {
+            stroke: #1e293b !important;
+          }
+          .react-flow__edge.dsd-fk-edge marker path,
+          .react-flow__edge.dsd-fk-edge marker polygon {
+            fill: #1e293b !important;
+            stroke: #1e293b !important;
+          }
+          .dsd-fk-label {
+            fill: #1e293b !important;
+          }
+          .dsd-fk-label-bg {
+            fill: rgba(255, 255, 255, 0.95) !important;
+          }
+        `}
+        
         /* StitchAI-style subtle grid */
         .react-flow__background {
           opacity: 0.4;
@@ -206,7 +263,7 @@ const EditorCanvas = () => {
       <ReactFlow
         nodes={displayNodes}
         edges={displayEdges}
-        onNodesChange={viewMode === 'erd' ? onNodesChange : undefined}
+        onNodesChange={onNodesChange}  // Allow position changes in both modes
         onEdgesChange={viewMode === 'erd' ? onEdgesChange : undefined}
         onConnect={viewMode === 'erd' ? onConnect : undefined}
         onNodeClick={onNodeClick}
@@ -216,7 +273,7 @@ const EditorCanvas = () => {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        deleteKeyCode={['Backspace', 'Delete']}
+        deleteKeyCode={viewMode === 'erd' ? ['Backspace', 'Delete'] : []}  // Disable delete in DSD mode
         colorMode={darkMode ? 'dark' : 'light'}
         elevateEdgesOnSelect={false}
         minZoom={0.05}
@@ -278,18 +335,15 @@ const EditorCanvas = () => {
             </button>
             <button
               onClick={() => setViewMode('dsd')}
-              disabled={!dsdData}
               className={`
                 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2
-                ${!dsdData 
-                  ? 'opacity-50 cursor-not-allowed text-gray-400'
-                  : viewMode === 'dsd'
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
-                    : darkMode
-                      ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'}
+                ${viewMode === 'dsd'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+                  : darkMode
+                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'}
               `}
-              title={!dsdData ? 'Generate DSD first to enable this view' : 'Switch to DSD View'}
+              title={!dsdData ? 'DSD will be generated on first Save' : 'Switch to DSD View'}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
@@ -363,7 +417,7 @@ const EditorCanvas = () => {
         )}
 
         {/* DSD View Info Panel */}
-        {viewMode === 'dsd' && dsdData && (
+        {viewMode === 'dsd' && (
           <Panel position="top-right" className="space-x-2">
             <div className={`
               backdrop-blur-xl p-4 rounded-xl shadow-xl border transition-all duration-300
@@ -373,12 +427,22 @@ const EditorCanvas = () => {
                 DSD View
               </div>
               <div className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium">{dsdData.tables?.length || 0}</span> Tables
-                </div>
-                <div className="text-xs mt-2 opacity-70">
-                  Read-only view. Edit in ERD mode.
-                </div>
+                {dsdData ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">{dsdData.tables?.length || 0}</span> Tables
+                    </div>
+                    <div className="text-xs mt-2 opacity-70">
+                      Read-only view. Edit in ERD mode.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs opacity-70">
+                      💡 Click <strong>Save</strong> to generate DSD
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </Panel>

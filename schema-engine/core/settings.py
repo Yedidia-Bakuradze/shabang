@@ -21,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("SCHEMA_ENGINE_SECRET_KEY")
+SECRET_KEY = os.environ.get("SCHEMA_ENGINE_SECRET_KEY", "django-insecure-schema-engine-dev-key-change-in-production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['schema-engine']
+ALLOWED_HOSTS = ['schema-engine', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'normalization',
 ]
 
 MIDDLEWARE = [

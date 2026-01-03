@@ -52,53 +52,172 @@ def parse_reactflow_to_erd(reactflow_data, project_name="database"):
     # Build maps of different node types
     entity_nodes = {}
     relationship_nodes = {}
+    attribute_nodes = {}  # Standalone attribute nodes
     
     for node in nodes:
         node_id = node.get('id')
         node_data = node.get('data', {})
+        node_type = node.get('type', node_data.get('nodeType', ''))
         
         print(f"DEBUG PARSER: Node {node_id}: data={node_data}")
         
+        # Check if it's an attribute node (standalone)
+        if node_id.startswith('attr-') or node_type == 'attributeNode' or node_data.get('nodeType') == 'attribute':
+            attribute_nodes[node_id] = {
+                "label": node_data.get('label', 'unknown'),
+                "isPrimaryKey": node_data.get('isPrimaryKey', False),
+                "dataType": node_data.get('dataType', 'VARCHAR'),
+                "allowNull": node_data.get('allowNull', True),
+                "isUnique": node_data.get('isUnique', False),
+            }
         # Check if it's a relationship (id starts with 'rel-' or has relationshipType)
-        if node_id.startswith('rel-') or 'relationshipType' in node_data:
+        elif node_id.startswith('rel-') or 'relationshipType' in node_data:
             relationship_nodes[node_id] = {
                 "label": node_data.get('label', 'Relation'),
                 "relationshipType": node_data.get('relationshipType', '1:N'),
                 "entityConnections": node_data.get('entityConnections', [])
             }
-        # Check if it's an entity (has attributes array and is not a relationship)
-        elif 'attributes' in node_data and 'relationshipType' not in node_data:
+        # Check if it's an entity (id starts with 'ent-' or has entity characteristics)
+        elif node_id.startswith('ent-') or (node_data.get('nodeType') == 'entity') or ('attributes' in node_data and 'relationshipType' not in node_data):
             entity_nodes[node_id] = {
                 "name": node_data.get('label', 'Unknown'),
                 "description": node_data.get('description', ''),
                 "attributes": []
             }
             
-            # Parse attributes from the entity's data
+            # Parse any inline attributes from the entity's data
             for attr in node_data.get('attributes', []):
                 # Convert SQL type to logical type
                 sql_type = attr.get('dataType', attr.get('type', 'VARCHAR'))
                 logical_type = SQL_TO_LOGICAL_TYPE.get(sql_type.upper(), 'String')
                 
+                # Clean attribute name (strip whitespace including tabs)
+                attr_name = attr.get('name', attr.get('label', 'unknown')).strip()
+                
                 attr_data = {
-                    "name": attr.get('name', attr.get('label', 'unknown')),
+                    "name": attr_name,
                     "type": logical_type,
                     "primary_key": attr.get('isKey', attr.get('isPrimaryKey', False)),
                     "nullable": attr.get('allowNull', not attr.get('isRequired', True)),
                     "unique": attr.get('isUnique', False)
                 }
                 entity_nodes[node_id]['attributes'].append(attr_data)
+    
+    # Build a set of attribute IDs that are already included inline in entities
+    # This prevents duplicates when we also have standalone attribute nodes
+    inline_attr_ids = set()
+    for node in nodes:
+        node_data = node.get('data', {})
+        if 'attributes' in node_data:
+            for attr in node_data.get('attributes', []):
+                if 'id' in attr:
+                    inline_attr_ids.add(attr['id'])
+    
+    # Connect standalone attribute nodes to their parent entities
+    # Only if they weren't already added as inline attributes
+    # Method 1: By edge connections
+    for edge in edges:
+        source = edge.get('source', '')
+        target = edge.get('target', '')
+        
+        # Attribute -> Entity edge
+        if source in attribute_nodes and target in entity_nodes:
+            # Skip if this attribute was already added inline
+            if source in inline_attr_ids:
+                continue
+                
+            attr_info = attribute_nodes[source]
+            attr_name = attr_info['label'].strip()
             
-            # If no primary key found, add an auto-generated 'id' column
-            has_pk = any(attr.get('primary_key') for attr in entity_nodes[node_id]['attributes'])
-            if not has_pk:
-                entity_nodes[node_id]['attributes'].insert(0, {
-                    "name": "id",
-                    "type": "Integer",
-                    "primary_key": True,
-                    "nullable": False,
-                    "unique": True
-                })
+            # Check if attribute already exists
+            existing_names = [a['name'] for a in entity_nodes[target]['attributes']]
+            if attr_name in existing_names:
+                continue
+                
+            sql_type = attr_info.get('dataType', 'VARCHAR')
+            logical_type = SQL_TO_LOGICAL_TYPE.get(sql_type.upper(), 'String')
+            
+            attr_data = {
+                "name": attr_name,
+                "type": logical_type,
+                "primary_key": attr_info.get('isPrimaryKey', attr_info.get('isKey', False)),
+                "nullable": attr_info.get('allowNull', True),
+                "unique": attr_info.get('isUnique', False)
+            }
+            entity_nodes[target]['attributes'].append(attr_data)
+        
+        # Entity -> Attribute edge (reverse direction)
+        elif source in entity_nodes and target in attribute_nodes:
+            # Skip if this attribute was already added inline
+            if target in inline_attr_ids:
+                continue
+                
+            attr_info = attribute_nodes[target]
+            attr_name = attr_info['label'].strip()
+            
+            # Check if attribute already exists
+            existing_names = [a['name'] for a in entity_nodes[source]['attributes']]
+            if attr_name in existing_names:
+                continue
+                
+            sql_type = attr_info.get('dataType', 'VARCHAR')
+            logical_type = SQL_TO_LOGICAL_TYPE.get(sql_type.upper(), 'String')
+            
+            attr_data = {
+                "name": attr_name,
+                "type": logical_type,
+                "primary_key": attr_info.get('isPrimaryKey', attr_info.get('isKey', False)),
+                "nullable": attr_info.get('allowNull', True),
+                "unique": attr_info.get('isUnique', False)
+            }
+            entity_nodes[source]['attributes'].append(attr_data)
+    
+    # Method 2: By naming convention (attr-{entity_id}-{attr_id})
+    for attr_id, attr_info in attribute_nodes.items():
+        # Skip if this attribute was already added inline
+        if attr_id in inline_attr_ids:
+            continue
+            
+        # Parse entity ID from attribute node ID pattern: "attr-{entity_id}-{suffix}"
+        if attr_id.startswith('attr-'):
+            parts = attr_id.split('-')
+            if len(parts) >= 3:
+                # Reconstruct entity ID (e.g., "attr-ent-emp-e1" -> "ent-emp")
+                entity_id = '-'.join(parts[1:-1])
+                
+                if entity_id in entity_nodes:
+                    attr_name = attr_info['label'].strip()
+                    
+                    # Check if this attribute is already in the entity
+                    existing_names = [a['name'] for a in entity_nodes[entity_id]['attributes']]
+                    if attr_name not in existing_names:
+                        sql_type = attr_info.get('dataType', 'VARCHAR')
+                        logical_type = SQL_TO_LOGICAL_TYPE.get(sql_type.upper(), 'String')
+                        
+                        attr_data = {
+                            "name": attr_name,
+                            "type": logical_type,
+                            "primary_key": attr_info.get('isPrimaryKey', attr_info.get('isKey', False)),
+                            "nullable": attr_info.get('allowNull', True),
+                            "unique": attr_info.get('isUnique', False)
+                        }
+                        entity_nodes[entity_id]['attributes'].append(attr_data)
+    
+    # Sort attributes: primary keys first
+    for entity_id, entity_data in entity_nodes.items():
+        entity_data['attributes'].sort(key=lambda x: (0 if x.get('primary_key') else 1))
+    
+    # If no primary key found in any entity, add an auto-generated 'id' column
+    for entity_id, entity_data in entity_nodes.items():
+        has_pk = any(attr.get('primary_key') for attr in entity_data['attributes'])
+        if not has_pk and len(entity_data['attributes']) > 0:
+            entity_data['attributes'].insert(0, {
+                "name": "id",
+                "type": "Integer",
+                "primary_key": True,
+                "nullable": False,
+                "unique": True
+            })
     
     # Build primary key map (entity -> PK column name)
     entity_pk_map = {}

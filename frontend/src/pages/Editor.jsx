@@ -5,10 +5,13 @@ import EditorCanvas from '../components/EditorCanvas';
 import PropertyPanel from '../components/Flow/PropertyPanel';
 import DSDButton from '../components/DSDButton';
 import DSDModal from '../components/DSDModal';
+import NormalizationButton from '../components/NormalizationButton';
+import NormalizationModal from '../components/NormalizationModal';
 import api from '../api/axios';
 import { toast } from 'react-hot-toast';
 import useFlowStore from '../store/useFlowStore';
 import FlowPersistence from '../components/Flow/FlowPersistence';
+import useDSDTransform from '../hooks/useDSDTransform';
 
 const Editor = () => {
     const { projectId } = useParams();
@@ -16,7 +19,9 @@ const Editor = () => {
     const [saving, setSaving] = useState(false);
     const [projectName, setProjectName] = useState('');
     const [showDSDModal, setShowDSDModal] = useState(false);
-    const { loadProjectData, getCanvasData, markAsSaved, setProjectId, hasUnsavedChanges } = useFlowStore();
+    const [showNormalizationModal, setShowNormalizationModal] = useState(false);
+    const { loadProjectData, getCanvasData, markAsSaved, setProjectId, hasUnsavedChanges, setDSDData } = useFlowStore();
+    const { transformERDtoDSD } = useDSDTransform();
 
     // Load project data
     useEffect(() => {
@@ -54,12 +59,37 @@ const Editor = () => {
         setSaving(true);
         try {
             const canvasData = getCanvasData();
+            
+            // Step 1: Save ERD data
             await api.put(`/project/${projectId}/`, {
                 entities: canvasData
             });
+            
+            // Step 2: Automatically generate DSD from current ERD
+            try {
+                const dsdResult = await transformERDtoDSD(projectId, {
+                    dialect: 'postgresql',
+                    validate: true,
+                    include_drop: false,
+                    entities: canvasData  // Send current canvas data
+                });
+                
+                // Step 3: Store DSD data in the store for immediate DSD tab access
+                if (dsdResult?.dsd) {
+                    setDSDData(dsdResult.dsd);
+                }
+                
+                // Step 4: SQL is already generated and saved by the backend
+                // The backend returns it in dsdResult.sql
+                
+            } catch (dsdError) {
+                console.warn('DSD generation failed during save:', dsdError);
+                // Don't fail the entire save if DSD generation fails
+            }
+            
             markAsSaved();
             if (!isAutoSave) {
-                toast.success('Project saved successfully!');
+                toast.success('Project saved! DSD and SQL updated.');
             }
         } catch (error) {
             console.error('Failed to save project:', error);
@@ -129,6 +159,9 @@ const Editor = () => {
                     </div>
                     <EditorCanvas />
 
+                    {/* Normalization Button */}
+                    <NormalizationButton onClick={() => setShowNormalizationModal(true)} />
+
                     {/* DSD Button */}
                     <DSDButton onClick={() => setShowDSDModal(true)} />
                 </div>
@@ -145,6 +178,17 @@ const Editor = () => {
                     isOpen={showDSDModal}
                     onClose={() => setShowDSDModal(false)}
                     projectId={projectId}
+                    projectName={projectName}
+                />
+            )}
+
+            {/* Normalization Modal */}
+            {showNormalizationModal && (
+                <NormalizationModal
+                    isOpen={showNormalizationModal}
+                    onClose={() => setShowNormalizationModal(false)}
+                    projectId={projectId}
+                    projectName={projectName}
                 />
             )}
         </Layout>

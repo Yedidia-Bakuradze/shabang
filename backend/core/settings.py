@@ -155,3 +155,6 @@ SIMPLE_JWT = {
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
 }
+
+# Schema Engine URL (for normalization service)
+SCHEMA_ENGINE_URL = os.environ.get('SCHEMA_ENGINE_URL', 'http://schema-engine:8001')

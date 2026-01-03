@@ -32,7 +32,7 @@ services:
     volumes:
       - ./schema-engine:/app
     environment:
-      - SECRET_KEY=${SCHEMA_ENGINE_SECRET_KEY} 
+      - SCHEMA_ENGINE_SECRET_KEY=${SCHEMA_ENGINE_SECRET_KEY:-django-insecure-schema-engine-dev-key-change-in-production}
     depends_on:
       - db
 

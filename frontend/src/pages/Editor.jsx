@@ -5,6 +5,8 @@ import EditorCanvas from '../components/EditorCanvas';
 import PropertyPanel from '../components/Flow/PropertyPanel';
 import DSDButton from '../components/DSDButton';
 import DSDModal from '../components/DSDModal';
+import NormalizationButton from '../components/NormalizationButton';
+import NormalizationModal from '../components/NormalizationModal';
 import api from '../api/axios';
 import { toast } from 'react-hot-toast';
 import useFlowStore from '../store/useFlowStore';
@@ -17,6 +19,7 @@ const Editor = () => {
     const [saving, setSaving] = useState(false);
     const [projectName, setProjectName] = useState('');
     const [showDSDModal, setShowDSDModal] = useState(false);
+    const [showNormalizationModal, setShowNormalizationModal] = useState(false);
     const { loadProjectData, getCanvasData, markAsSaved, setProjectId, hasUnsavedChanges, setDSDData } = useFlowStore();
     const { transformERDtoDSD } = useDSDTransform();
 
@@ -156,6 +159,9 @@ const Editor = () => {
                     </div>
                     <EditorCanvas />
 
+                    {/* Normalization Button */}
+                    <NormalizationButton onClick={() => setShowNormalizationModal(true)} />
+
                     {/* DSD Button */}
                     <DSDButton onClick={() => setShowDSDModal(true)} />
                 </div>
@@ -172,6 +178,17 @@ const Editor = () => {
                     isOpen={showDSDModal}
                     onClose={() => setShowDSDModal(false)}
                     projectId={projectId}
+                    projectName={projectName}
+                />
+            )}
+
+            {/* Normalization Modal */}
+            {showNormalizationModal && (
+                <NormalizationModal
+                    isOpen={showNormalizationModal}
+                    onClose={() => setShowNormalizationModal(false)}
+                    projectId={projectId}
+                    projectName={projectName}
                 />
             )}
         </Layout>

@@ -64,28 +64,6 @@ mkdir -p /tests/reports
 echo "🧹 Cleaning up old debug screenshots..."
 find /tests/reports -name "debug_*.png" -type f -mtime +1 -delete 2>/dev/null || true
 
-# Function to display test results summary
-display_test_summary() {
-    local exit_code=$1
-    
-    echo ""
-    echo "=========================================="
-    
-    if [ $exit_code -eq 0 ]; then
-        echo "   ✅ ALL TESTS PASSED!"
-        echo "   🎉 Great job! All functionality is working correctly."
-    else
-        echo "   ❌ SOME TESTS FAILED"
-        echo "   🔍 Check the detailed output above for failure reasons."
-        echo "   📸 Screenshots saved in /tests/reports/ for failed tests."
-    fi
-    
-    echo ""
-    echo "   📊 HTML Report: /tests/reports/report.html"
-    echo "   🔍 VNC Debug: http://localhost:7900 (password: secret)"
-    echo "=========================================="
-}
-
 # Run the tests
 echo ""
 echo "=========================================="
@@ -93,18 +71,12 @@ echo "   Running E2E Tests"
 echo "=========================================="
 echo ""
 
-# Run pytest with sugar plugin for beautiful output
+# Run pytest
 pytest \
     --verbose \
     --tb=short \
     --html=/tests/reports/report.html \
     --self-contained-html \
-    --sugar \
     /tests/test_erd_flows.py
 
-TEST_EXIT_CODE=$?
-
-# Display beautiful summary
-display_test_summary $TEST_EXIT_CODE
-
-exit $TEST_EXIT_CODE
+exit $?

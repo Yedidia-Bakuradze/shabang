@@ -46,8 +46,34 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
+      - REACT_APP_API_URL=http://backend:8000
     depends_on:
       - backend
+
+  # Selenium Chrome browser for E2E testing
+  selenium-chrome:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+      - "7900:7900"  # VNC viewer for debugging
+    profiles:
+      - test
+
+  # E2E Test Runner
+  tests:
+    build: ./tests
+    environment:
+      - FRONTEND_URL=http://frontend:3000
+      - SELENIUM_HUB=http://selenium-chrome:4444/wd/hub
+    depends_on:
+      - frontend
+      - selenium-chrome
+    volumes:
+      - ./tests:/tests
+      - ./tests/reports:/tests/reports
+    profiles:
+      - test
 
 volumes:
   postgres_data: 

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Input = ({ label, type = 'text', id, value, onChange, onFocus, onBlur, placeholder, required = false, error }) => {
+const Input = ({ label, type = 'text', id, value, onChange, onFocus, onBlur, placeholder, required = false, error, 'data-testid': dataTestId, ...props }) => {
     return (
         <div className="mb-4">
             {label && (
@@ -17,6 +17,8 @@ const Input = ({ label, type = 'text', id, value, onChange, onFocus, onBlur, pla
                 onBlur={onBlur}
                 placeholder={placeholder}
                 required={required}
+                data-testid={dataTestId}
+                {...props}
                 className={`w-full px-3 py-2 border rounded-lg shadow-sm 
                     bg-white text-gray-900 
                     dark:bg-gray-700 dark:text-gray-100 

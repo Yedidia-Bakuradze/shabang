@@ -92,6 +92,7 @@ const Login = () => {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 placeholder="Username"
+                                data-testid="login-username"
                                 className="dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
                             />
 
@@ -105,6 +106,7 @@ const Login = () => {
                                 onFocus={() => setIsTypingPassword(true)}
                                 onBlur={() => setIsTypingPassword(false)}
                                 placeholder="Password"
+                                data-testid="login-password"
                                 className="dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
                             />
                         </div>
@@ -116,6 +118,7 @@ const Login = () => {
                                 className="w-full flex justify-center 
                                     dark:bg-primary-600 dark:hover:bg-primary-500"
                                 disabled={loading}
+                                data-testid="login-submit"
                             >
                                 {loading ? 'Signing in...' : 'Sign in'}
                             </Button>

@@ -58,7 +58,7 @@ const DSDModal = ({ isOpen, onClose, projectId, projectName }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+    <div data-testid="dsd-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col m-4">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">

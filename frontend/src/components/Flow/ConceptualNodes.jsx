@@ -27,6 +27,7 @@ export const EntityNode = ({ id, data, selected }) => {
 
   return (
     <div 
+      data-testid="entity-node"
       className={`
         group relative
         rounded-xl overflow-hidden
@@ -61,6 +62,7 @@ export const EntityNode = ({ id, data, selected }) => {
             type="text"
             value={data.label || 'Entity'}
             onChange={handleLabelChange}
+            data-testid="entity-label"
             className="
               nodrag relative z-10
               w-full bg-transparent 

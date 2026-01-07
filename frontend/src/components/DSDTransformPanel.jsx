@@ -112,6 +112,7 @@ const DSDTransformPanel = ({ onTransform, isLoading, projectId }) => {
       <button
         onClick={handleTransform}
         disabled={isLoading || !projectId}
+        data-testid="generate-dsd-submit"
         className={`w-full py-3 px-6 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
           isLoading || !projectId
             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'

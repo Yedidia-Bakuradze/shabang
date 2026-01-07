@@ -72,6 +72,9 @@ const useFlowStore = create((set, get) => ({
     const tablePositions = {};
     const tableNodeIds = {};
     
+    // Helper to normalize table names for mapping
+    const normalizeName = (name) => name && name.toLowerCase().replace(/[^a-z0-9_]/gi, '');
+
     // Create entity nodes for each normalized table
     normalizedResult.tables.forEach((table, tableIndex) => {
       const row = Math.floor(tableIndex / COLS);
@@ -80,8 +83,8 @@ const useFlowStore = create((set, get) => ({
       const entityY = 100 + row * ENTITY_SPACING_Y;
       
       const entityId = `ent-${Date.now()}-${tableIndex}`;
-      tableNodeIds[table.name] = entityId;
-      tablePositions[table.name] = { x: entityX, y: entityY };
+      tableNodeIds[normalizeName(table.name)] = entityId;
+      tablePositions[normalizeName(table.name)] = { x: entityX, y: entityY };
       
       // Find primary key columns
       const pkColumns = new Set();
@@ -162,43 +165,45 @@ const useFlowStore = create((set, get) => ({
     
     // Create relationship nodes for foreign keys
     const processedFKs = new Set();
+    let fkCounter = 0;
     
     normalizedResult.tables.forEach((table, tableIndex) => {
-      const sourceEntityId = tableNodeIds[table.name];
+      const sourceEntityId = tableNodeIds[normalizeName(table.name)];
       
-      table.constraints?.forEach(constraint => {
+      table.constraints?.forEach((constraint, constraintIndex) => {
         if (constraint.type === 'FOREIGN KEY' && constraint.referenced_table) {
-          const targetEntityId = tableNodeIds[constraint.referenced_table];
-          
+          const refTableNorm = normalizeName(constraint.referenced_table);
+          const targetEntityId = tableNodeIds[refTableNorm];
+          // Debug logging
+          if (!targetEntityId) {
+            // eslint-disable-next-line no-console
+            console.warn('Could not find target entity for FK:', constraint, 'normalized ref:', refTableNorm, 'tableNodeIds:', tableNodeIds);
+          }
           if (targetEntityId && sourceEntityId !== targetEntityId) {
-            const fkKey = `${sourceEntityId}-${targetEntityId}`;
-            
-            // Avoid duplicate relationships
-            if (!processedFKs.has(fkKey) && !processedFKs.has(`${targetEntityId}-${sourceEntityId}`)) {
+            // Use FK name + tables to create unique key (each FK is a separate relationship)
+            const fkKey = `${constraint.name || constraintIndex}-${sourceEntityId}-${targetEntityId}`;
+            // Only skip true duplicates (same FK processed twice)
+            if (!processedFKs.has(fkKey)) {
               processedFKs.add(fkKey);
-              
-              const sourcePos = tablePositions[table.name];
-              const targetPos = tablePositions[constraint.referenced_table];
-              
-              // Calculate midpoint for relationship diamond
+              fkCounter++;
+              const sourcePos = tablePositions[normalizeName(table.name)];
+              const targetPos = tablePositions[refTableNorm];
+              // Calculate midpoint for relationship diamond, offset by counter to prevent overlap
               const relX = (sourcePos.x + targetPos.x) / 2;
-              const relY = (sourcePos.y + targetPos.y) / 2;
-              
-              const relId = `rel-${Date.now()}-${tableIndex}-${Math.random().toString(36).substr(2, 5)}`;
-              
+              const relY = (sourcePos.y + targetPos.y) / 2 + (fkCounter - 1) * 80;
+              const relId = `rel-${Date.now()}-${fkCounter}-${Math.random().toString(36).substr(2, 5)}`;
               // Create relationship node
               const relNode = {
                 id: relId,
                 type: 'relationshipNode',
                 position: { x: relX, y: relY - 50 },
                 data: {
-                  label: constraint.name || `FK_${table.name}`,
+                  label: constraint.name || `FK_${table.name}_${fkCounter}`,
                   relationshipType: '1:N',
                   entityConnections: [targetEntityId, sourceEntityId],
                   attributes: []
                 }
               };
-              
               // Create edges connecting entities to relationship
               // Match the edge structure from onConnect for entity-to-entity connections
               const relEdge1 = {
@@ -214,7 +219,6 @@ const useFlowStore = create((set, get) => ({
                   targetCardinality: 'ONE'
                 }
               };
-              
               const relEdge2 = {
                 id: `edge-${relId}-${sourceEntityId}`,
                 source: relId,
@@ -228,7 +232,6 @@ const useFlowStore = create((set, get) => ({
                   targetCardinality: 'ONE'
                 }
               };
-              
               newNodes.push(relNode);
               newEdges.push(relEdge1, relEdge2);
             }

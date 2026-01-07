@@ -1,0 +1,12 @@
+# Test artifacts - don't commit
+reports/
+.pytest_cache/
+__pycache__/
+
+# Debug screenshots (keep only in CI)
+debug_*.png
+*_failure.png
+
+# OS files
+.DS_Store
+Thumbs.db

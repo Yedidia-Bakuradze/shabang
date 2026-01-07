@@ -73,6 +73,7 @@ const DSDViewer = ({ dsdData, validationResults, sqlScript, dialect }) => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowSQL(!showSQL)}
+            data-testid="toggle-sql-view"
             className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"
           >
             {showSQL ? 'Show Tables' : 'Show SQL'}
@@ -154,7 +155,7 @@ const DSDViewer = ({ dsdData, validationResults, sqlScript, dialect }) => {
         {showSQL ? (
           /* SQL Script View */
           <div className="p-4">
-            <pre className="p-4 bg-gray-900 text-green-400 rounded-lg overflow-x-auto text-sm font-mono">
+            <pre data-testid="sql-output" className="p-4 bg-gray-900 text-green-400 rounded-lg overflow-x-auto text-sm font-mono">
               {sqlScript}
             </pre>
           </div>

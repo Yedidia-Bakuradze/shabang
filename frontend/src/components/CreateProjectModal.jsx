@@ -124,6 +124,7 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
                                     onChange={(e) => setName(e.target.value)}
                                     required
                                     placeholder="Enter project name..."
+                                    data-testid="project-name-input"
                                 />
 
                                 <div>
@@ -143,7 +144,7 @@ const CreateProjectModal = ({ isOpen, closeModal, onProjectCreated }) => {
                                     <Button variant="secondary" onClick={resetAndClose}>
                                         Cancel
                                     </Button>
-                                    <Button type="submit" variant="primary" disabled={loading}>
+                                    <Button type="submit" variant="primary" disabled={loading} data-testid="create-project-submit">
                                         {loading ? 'Processing...' : (importedData ? 'Import Project' : 'Create Project')}
                                     </Button>
                                 </div>

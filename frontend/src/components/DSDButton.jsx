@@ -10,6 +10,7 @@ const DSDButton = ({ onClick, disabled }) => {
     <button
       onClick={onClick}
       disabled={disabled}
+      data-testid="dsd-generate-btn"
       className={`fixed bottom-8 right-8 z-40 p-4 rounded-full shadow-2xl transition-all transform hover:scale-110 flex items-center gap-3 group ${
         disabled
           ? 'bg-gray-400 cursor-not-allowed'

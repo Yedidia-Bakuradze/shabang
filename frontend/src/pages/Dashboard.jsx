@@ -103,12 +103,13 @@ const Dashboard = () => {
                     <Button
                         onClick={createExampleProject}
                         variant="secondary"
+                        data-testid="create-example-btn"
                         className="flex items-center bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-700"
                     >
                         <BeakerIcon className="h-5 w-5 mr-2" />
                         Create Example Project
                     </Button>
-                    <Button onClick={() => setIsModalOpen(true)} className="flex items-center">
+                    <Button onClick={() => setIsModalOpen(true)} data-testid="new-project-btn" className="flex items-center">
                         <PlusIcon className="h-5 w-5 mr-2" />
                         New Project
                     </Button>

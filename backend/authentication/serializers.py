@@ -22,6 +22,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 'error_messages': {
                     'max_length': 'Username cannot have more than 100 characters.'
                 }
+            },
+            'first_name': {
+                'required': False
+            },
+            'last_name': {
+                'required': False
             }
         }
     

@@ -145,7 +145,59 @@ class BCNFDecomposer:
         ]
         
         result = self._decompose_recursive(table, relevant_fds)
+        
+        # After all decomposition, ensure all FK relationships are properly established
+        # This is needed because recursive decomposition may miss some FK relationships
+        self._add_all_foreign_keys(result)
+        
         return result
+    
+    def _add_all_foreign_keys(self, tables: List[Table]) -> None:
+        """
+        Add foreign key constraints between all tables based on shared primary keys.
+        This ensures that after recursive BCNF decomposition, all FK relationships
+        are properly established, not just the immediate parent-child ones.
+        """
+        for i, t1 in enumerate(tables):
+            t1_attrs = t1.get_column_names()
+            
+            # Find primary key of t1
+            t1_pk = None
+            for c in t1.constraints:
+                if c.get('type') == 'PRIMARY KEY':
+                    t1_pk = set(c['columns'])
+                    break
+            
+            if not t1_pk:
+                continue
+            
+            for j, t2 in enumerate(tables):
+                if i == j:
+                    continue
+                    
+                t2_attrs = t2.get_column_names()
+                
+                # If t2 contains t1's primary key columns, t2 should have FK to t1
+                if t1_pk.issubset(t2_attrs) and t1_pk != t2_attrs:
+                    # Check if FK already exists
+                    fk_exists = False
+                    for c in t2.constraints:
+                        if (c.get('type') == 'FOREIGN KEY' and 
+                            c.get('referenced_table') == t1.name):
+                            fk_exists = True
+                            break
+                    
+                    if not fk_exists:
+                        fk_constraint = {
+                            'name': f"fk_{t2.name}_{t1.name}",
+                            'type': 'FOREIGN KEY',
+                            'columns': list(t1_pk),
+                            'referenced_table': t1.name,
+                            'referenced_columns': list(t1_pk),
+                            'on_delete': 'CASCADE',
+                            'on_update': 'CASCADE'
+                        }
+                        t2.constraints.append(fk_constraint)
     
     def _decompose_recursive(self, table: Table, fds: List[FunctionalDependency]) -> List[Table]:
         """Recursively decompose until BCNF is achieved"""

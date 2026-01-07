@@ -13,12 +13,12 @@ RETRY_INTERVAL=5
 
 # Validate required files exist
 if [ ! -f "/tests/test_erd_flows.py" ]; then
-    echo "❌ Error: test_erd_flows.py not found!"
+    echo "ג Error: test_erd_flows.py not found!"
     exit 1
 fi
 
 if [ ! -f "/tests/conftest.py" ]; then
-    echo "❌ Error: conftest.py not found!"
+    echo "ג Error: conftest.py not found!"
     exit 1
 fi
 
@@ -28,11 +28,11 @@ wait_for_service() {
     local service_name=$2
     local retries=0
     
-    echo "⏳ Waiting for $service_name at $url..."
+    echo "ג³ Waiting for $service_name at $url..."
     
     while [ $retries -lt $MAX_RETRIES ]; do
         if curl -s --head --fail "$url" > /dev/null 2>&1; then
-            echo "✅ $service_name is ready!"
+            echo "ג… $service_name is ready!"
             return 0
         fi
         
@@ -41,27 +41,27 @@ wait_for_service() {
         sleep $RETRY_INTERVAL
     done
     
-    echo "❌ $service_name did not become ready in time"
+    echo "ג $service_name did not become ready in time"
     return 1
 }
 
 # Wait for Selenium Hub
 echo ""
-echo "🔧 Checking Selenium Hub..."
+echo "נ”§ Checking Selenium Hub..."
 wait_for_service "${SELENIUM_HUB}/status" "Selenium Hub"
 
 # Wait for Frontend
 echo ""
-echo "🌐 Checking Frontend..."
+echo "נ Checking Frontend..."
 wait_for_service "$FRONTEND_URL" "Frontend"
 
 # Create reports directory
 echo ""
-echo "📁 Setting up reports directory..."
+echo "נ“ Setting up reports directory..."
 mkdir -p /tests/reports
 
 # Clean up old debug screenshots (keep only recent ones)
-echo "🧹 Cleaning up old debug screenshots..."
+echo "נ§¹ Cleaning up old debug screenshots..."
 find /tests/reports -name "debug_*.png" -type f -mtime +1 -delete 2>/dev/null || true
 
 # Run the tests
@@ -80,3 +80,4 @@ pytest \
     /tests/test_erd_flows.py
 
 exit $?
+

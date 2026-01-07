@@ -277,34 +277,24 @@ class TestGenerateSQL:
     
     def test_generate_sql_from_erd(self, editor_page, wait_factory):
         """
-        Test: Create an entity, click Generate DSD, and verify SQL output.
+        Test: Use the existing example project entities and verify SQL generation works.
+        The Enterprise System demo project has complete entities with attributes.
         """
         driver = editor_page
-        wait = wait_factory(driver, 15)
+        wait = wait_factory(driver, 20)
         
-        # Add an entity first
-        add_entity_btn = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='add-entity-btn']"))
-        )
-        add_entity_btn.click()
-        time.sleep(0.5)
+        # The editor_page fixture loads the Enterprise System example project
+        # which already has complete entities with attributes (Users, Employee, Project, etc.)
+        # We'll use this existing schema to test SQL generation
         
-        # Rename it to something meaningful
-        entity_labels = driver.find_elements(By.CSS_SELECTOR, "[data-testid='entity-label']")
-        if entity_labels:
-            entity_label = entity_labels[-1]
-            actions = ActionChains(driver)
-            actions.double_click(entity_label).perform()
-            entity_label.send_keys(Keys.CONTROL, "a")  # Select all
-            entity_label.send_keys("Users")
-            
-            # Click elsewhere to blur
-            canvas = driver.find_element(By.CSS_SELECTOR, ".react-flow__pane")
-            canvas.click()
-        
+        # Wait for canvas to be fully loaded with nodes
         time.sleep(1)
         
-        # Click the DSD Generate button (floating button)
+        # Verify we have entities on the canvas
+        entity_nodes = driver.find_elements(By.CSS_SELECTOR, ".react-flow__node")
+        assert len(entity_nodes) > 0, "Should have entities loaded from example project"
+        
+        # Click the DSD Generate button
         dsd_btn = wait.until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='dsd-generate-btn']"))
         )
@@ -322,14 +312,13 @@ class TestGenerateSQL:
         )
         generate_btn.click()
         
-        # Wait for generation to complete (loading state to finish)
-        time.sleep(3)  # Allow time for API call
-        
-        # Click "Show SQL" button to view SQL output
+        # Wait for the SQL/DSD to be generated (toggle-sql-view button appears when ready)
         try:
             show_sql_btn = wait.until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='toggle-sql-view']"))
             )
+            
+            # Click to show SQL
             show_sql_btn.click()
             time.sleep(0.5)
             
@@ -341,13 +330,24 @@ class TestGenerateSQL:
             sql_text = sql_output.text
             assert sql_text, "SQL output should not be empty"
             
-            # Check for typical SQL keywords
+            # Check for typical SQL keywords (CREATE TABLE)
             assert any(keyword in sql_text.upper() for keyword in ["CREATE", "TABLE"]), \
                 f"SQL output should contain CREATE TABLE statements. Got: {sql_text[:200]}"
+                
+            print(f"✓ SQL generated successfully from example project: {len(sql_text)} characters")
+            
         except Exception as e:
-            # If we can't find SQL, check if there's an error message or the modal content
-            modal_text = dsd_modal.text
-            pytest.skip(f"SQL generation may have failed or schema is empty. Modal content: {modal_text[:500]}")
+            # If SQL generation failed, check for error messages
+            try:
+                error_elements = driver.find_elements(By.CSS_SELECTOR, ".text-red-600, [class*='error']")
+                if error_elements:
+                    error_text = " ".join([el.text for el in error_elements if el.text])
+                    pytest.fail(f"DSD generation failed with error: {error_text}")
+                else:
+                    modal_text = dsd_modal.text
+                    pytest.fail(f"Could not find SQL output. Exception: {str(e)}. Modal content: {modal_text[:300]}")
+            except:
+                pytest.fail(f"DSD generation appears to have failed. Error: {str(e)}")
     
     def test_dsd_modal_opens(self, editor_page, wait_factory):
         """
